@@ -17,34 +17,35 @@ def _chinese_date() -> str:
 
 
 def _inject_source_links(html_text: str, articles: List[Dict]) -> str:
-    """将正文中的 [来源：XXX] 替换为可点击的超链接
+    """将正文中的 [来源：XXX] 或 [来源：XXX #N] 替换为可点击的超链接
 
-    按顺序匹配：第一个 [来源：央视新闻] 匹配 articles 中第一个 央视新闻 的文章，以此类推。
+    优先使用 [#N] 编号精确定位（最准确），降级使用顺序匹配。
     """
     import re
-    from collections import defaultdict
-
-    # 按来源名称分组文章（保留顺序）
-    source_groups = defaultdict(list)
-    for art in articles:
-        name = art.get("source", "")
-        if name:
-            source_groups[name].append(art)
-
-    # 记录每个来源已使用的索引
-    used = defaultdict(int)
 
     def replace_func(match):
         source_name = match.group(1)
-        group = source_groups.get(source_name, [])
-        idx = used[source_name]
-        if idx < len(group) and group[idx].get("link"):
-            url = group[idx]["link"]
-            used[source_name] += 1
-            return f'<a href="{url}" target="_blank" rel="noopener" class="source-link">{source_name}</a>'
+        raw_num = match.group(2)  # 可能为 None
+
+        if raw_num:
+            # 编号模式 [来源：XXX #N] — 直接精确定位
+            idx = int(raw_num) - 1  # 转为 0-indexed
+            if 0 <= idx < len(articles) and articles[idx].get("link"):
+                return f'<a href="{articles[idx]["link"]}" target="_blank" rel="noopener" class="source-link">{source_name}</a>'
+            elif 0 <= idx < len(articles):
+                return f'<span class="source-tag">{source_name}</span>'
+
+        # 降级：按来源名在 articles 中顺序匹配
+        for art in articles:
+            if art.get("source") == source_name and art.get("link"):
+                return f'<a href="{art["link"]}" target="_blank" rel="noopener" class="source-link">{source_name}</a>'
+
         return f'<span class="source-tag">{source_name}</span>'
 
-    return re.sub(r'\[来源：(.+?)\]', replace_func, html_text)
+    # 先匹配带编号的 [来源：XXX #N]，再匹配不带编号的 [来源：XXX]
+    result = re.sub(r'\[来源：(.+?)\s+#(\d+)\]', replace_func, html_text)
+    result = re.sub(r'\[来源：(.+?)\]', replace_func, result)
+    return result
 
 
 def _mark_ai_red(html_text: str) -> str:

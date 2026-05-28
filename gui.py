@@ -463,9 +463,23 @@ class NewsDailyGUI:
                 _run(mode=mode)
 
             self.root.after(0, lambda: self._log("生成完成！"))
-            self.root.after(500, self._open_reports)
+            # 只打开刚生成的报告，不打开其他类型的报告
+            self.root.after(500, lambda: self._open_single_report(mode))
         except Exception as e:
             self.root.after(0, lambda: self._log(f"错误: {e}"))
+
+    def _open_single_report(self, mode):
+        """只打开指定类型的报告"""
+        pattern, icon = {
+            "political": ("*时政日报.html", "时政"),
+            "industry": ("*AI日报.html", "AI"),
+        }.get(mode, ("*日报.html", ""))
+        files = sorted(MONTH_DIR.glob(pattern), reverse=True)
+        if files:
+            webbrowser.open(str(files[0]))
+            self._log(f"{icon}日报: {files[0].name}")
+        else:
+            self._log("暂无报告")
 
     def _generate_and_open_chart(self):
         """单独生成并打开价格走势图"""
