@@ -13,76 +13,136 @@ logger = logging.getLogger(__name__)
 # ==================== Claude API 客户端 ====================
 
 class ClaudeClient:
-    """Claude API 封装（支持自定义base_url用于第三方兼容API）"""
+    """AI API 客户端（支持 Anthropic 和 OpenAI 兼容协议自动切换）"""
 
     def __init__(self, api_key: str = None, model: str = None):
         self.api_key = api_key or CLAUDE_API_KEY
         self.model = model or CLAUDE_API_MODEL
-        self.base_url = CLAUDE_API_BASE_URL or None
-        self.client = None
+        self.base_url = (CLAUDE_API_BASE_URL or "").rstrip("/")
+        self._client = None
+
+    def _is_anthropic(self):
+        """检测是否为 Anthropic 协议"""
+        return not self.base_url or "anthropic" in self.base_url.lower()
 
     def _ensure_client(self):
-        if self.client is None:
-            try:
-                from anthropic import Anthropic
-                kwargs = {"api_key": self.api_key}
-                if self.base_url:
-                    kwargs["base_url"] = self.base_url
-                self.client = Anthropic(**kwargs)
-            except ImportError:
-                logger.error("anthropic SDK 未安装，请执行: pip install anthropic")
-                raise
-            except Exception as e:
-                logger.error(f"初始化Claude客户端失败: {e}")
-                raise
+        if self._client is not None:
+            return
+        if self._is_anthropic():
+            self._init_anthropic()
+        else:
+            self._init_httpx()
+
+    def _init_anthropic(self):
+        try:
+            from anthropic import Anthropic
+            kwargs = {"api_key": self.api_key}
+            if self.base_url:
+                kwargs["base_url"] = self.base_url
+            self._client = Anthropic(**kwargs)
+        except ImportError:
+            logger.error("anthropic SDK 未安装，请执行: pip install anthropic")
+            raise
+        except Exception as e:
+            logger.error(f"初始化Anthropic客户端失败: {e}")
+            raise
+
+    def _init_httpx(self):
+        self._client = "httpx"  # 标记为httpx模式
 
     def chat(self, system: str, messages: List[Dict], max_tokens: int = 4096) -> str:
-        """调用Claude/DeepSeek API（兼容thinking block响应）"""
         self._ensure_client()
+        if self._is_anthropic():
+            return self._chat_anthropic(system, messages, max_tokens)
+        else:
+            return self._chat_openai(system, messages, max_tokens)
+
+    def _chat_anthropic(self, system, messages, max_tokens):
         try:
-            resp = self.client.messages.create(
+            resp = self._client.messages.create(
                 model=self.model,
                 system=system,
                 max_tokens=max_tokens,
                 messages=messages,
             )
-            # 兼容处理：响应可能包含 ThinkingBlock 和 TextBlock
             for block in resp.content:
                 if hasattr(block, "text") and block.text:
                     return block.text
                 if hasattr(block, "thinking") and block.thinking:
-                    continue  # 跳过思考块
-            # 兜底
+                    continue
             return str(resp.content[0])
         except Exception as e:
-            logger.error(f"Claude API调用失败: {e}")
+            logger.error(f"Anthropic API调用失败: {e}")
+            raise
+
+    def _chat_openai(self, system, messages, max_tokens):
+        import httpx
+        url = f"{self.base_url}/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        body = {
+            "model": self.model,
+            "messages": [{"role": "system", "content": system}] + messages,
+            "max_tokens": max_tokens,
+        }
+        try:
+            with httpx.Client(timeout=120) as client:
+                resp = client.post(url, headers=headers, json=body)
+                resp.raise_for_status()
+                data = resp.json()
+            if "choices" in data and len(data["choices"]) > 0:
+                choice = data["choices"][0]
+                finish = choice.get("finish_reason", "")
+                msg = choice.get("message", {})
+                content = msg.get("content", "")
+                logger.info(f"API响应: finish={finish}, content空={not content}")
+                if not content:
+                    # 可能是 reasoning 模型，检查 reasoning_content
+                    rc = msg.get("reasoning_content", "")
+                    if rc:
+                        logger.info("检测到 reasoning_content，使用推理内容")
+                        return rc[:100]
+                    logger.info(f"完整choice: {str(choice)[:200]}")
+                    return ""
+                return content
+            logger.info(f"API响应结构异常: {str(data)[:200]}")
+            return str(data)
+        except Exception as e:
+            logger.error(f"OpenAI兼容API调用失败: {e}")
             raise
 
 
 # ==================== 总结 Prompt 模板 ====================
 
 POLITICAL_SUMMARY_SYSTEM = """你是一位专业的新闻分析师。请对以下时政新闻进行总结。
-每条新闻必须标注来源！严格去重——同一新闻若出现多次只保留一次。
+所有新闻均来自国内权威媒体。严格去重——同一新闻若出现多次只保留一次。
 
 输出格式（每条末尾加 [来源：XXX]）：
 
-## 📰 今日时政要闻
+## 今日时政要闻
 
-### 重大新闻
-- [标题]：一句话摘要 [来源：BBC中文/FT中文/央视网/...]
+### 央视报道（请优先从央视新闻源中提取最重要的新闻放于此栏目）
+- [标题]：一句话摘要 [来源：央视新闻]
 
-### 国内要闻
+### 要闻精选
 - [标题]：一句话摘要 [来源：XXX]
 
-### 国际动态
+### 政策与经济
+- [标题]：一句话摘要 [来源：XXX]
+
+### 社会与民生
 - [标题]：一句话摘要 [来源：XXX]
 
 要求：
 1. 每条新闻控制在50字以内，末尾必须标注来源
-2. 按重要程度排序
-3. 客观陈述，不加评论
-4. 严格去重，同一新闻无论来自几个源，只保留一条
-5. 优先保留央视、新华社等国内权威来源的版本
+2. 央视报道栏目置于最上方，优先展示央视新闻内容
+3. 如某条新闻涉及"人工智能""AI""大模型""智能"等关键词，请在该条前加上 [AI相关] 标记
+4. 按重要程度排序
+5. 客观陈述，不加评论
+6. 严格去重，同一新闻无论来自几个源，只保留一条
+7. 优先保留央视、新华社、人民日报等国内权威来源的版本
 """
 
 INDUSTRY_SUMMARY_SYSTEM = """你是一位专注AI影视传媒（AIGC视频/AI影视/AI广告）领域的行业分析师。

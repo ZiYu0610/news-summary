@@ -13,7 +13,8 @@ from bs4 import BeautifulSoup
 
 from config import (
     POLITICAL_NEWS_SOURCES, AIGC_NEWS_SOURCES,
-    POLITICAL_WEB_SOURCES, WEB_SCRAPE_SOURCES, NEWS_DIR,
+    POLITICAL_WEB_SOURCES, WEB_SCRAPE_SOURCES,
+    HANGZHOU_POLICY_SOURCES, NEWS_DIR,
 )
 
 logger = logging.getLogger(__name__)
@@ -220,20 +221,19 @@ AIGC_KEYWORDS = [
 
 
 def collect_political_news(days: int = 2) -> List[Dict]:
-    """采集时政新闻（含央视等国内主流媒体）"""
+    """采集时政新闻（国内主流媒体）"""
     all_articles = []
-    # 1. RSS源
-    for source in POLITICAL_NEWS_SOURCES:
-        if source["type"] == "rss":
-            articles = fetch_rss(source["url"], source["name"], days)
-        elif source["type"] == "web":
-            articles = fetch_web(source["url"], source["name"])
-        else:
-            continue
+    for source in POLITICAL_WEB_SOURCES:
+        articles = fetch_web(source["url"], source["name"])
         all_articles.extend(articles)
 
-    # 2. 补充：央视等国内媒体网页抓取
-    for source in POLITICAL_WEB_SOURCES:
+    return deduplicate(all_articles)
+
+
+def collect_hangzhou_policy(days: int = 30) -> List[Dict]:
+    """采集杭州市创业扶持政策信息（近一个月）"""
+    all_articles = []
+    for source in HANGZHOU_POLICY_SOURCES:
         articles = fetch_web(source["url"], source["name"])
         all_articles.extend(articles)
 
@@ -280,9 +280,13 @@ def collect_all(days: int = 2) -> Dict[str, List[Dict]]:
     industry = collect_industry_news(days)
     logger.info(f"行业新闻: 采集到 {len(industry)} 条")
 
+    hangzhou_policy = collect_hangzhou_policy(days=30)
+    logger.info(f"杭州创业政策: 采集到 {len(hangzhou_policy)} 条")
+
     return {
         "political": political,
         "industry": industry,
+        "hangzhou_policy": hangzhou_policy,
         "collected_at": datetime.now().isoformat(),
     }
 

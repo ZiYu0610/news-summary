@@ -1,225 +1,80 @@
 """日报报告生成模块
-将新闻总结、价格图表整合为美观的HTML日报。
+生成时政日报和AI行业日报，来源链接直接嵌入摘要正文。
 """
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
-from config import REPORTS_DIR
+from config import MONTH_DIR
 
 logger = logging.getLogger(__name__)
 
 
-def generate_report(
-    news_summary: Dict[str, str],
-    chart_path: Optional[Path] = None,
-    market_analysis: str = "",
-    output_path: Optional[Path] = None,
-) -> Path:
-    """生成HTML日报
+def _chinese_date() -> str:
+    now = datetime.now()
+    return f"{now.year}年{now.month}月{now.day}日"
 
-    Args:
-        news_summary: 新闻总结数据，格式: {"political": "...", "industry": "...", "combined": bool}
-        chart_path: 价格走势图路径（可选）
-        market_analysis: 市场价格分析文本（可选）
-        output_path: 输出路径，默认自动生成
 
-    Returns:
-        生成的HTML文件路径
+def _inject_source_links(html_text: str, articles: List[Dict]) -> str:
+    """将正文中的 [来源：XXX] 替换为可点击的超链接
+
+    按顺序匹配：第一个 [来源：央视新闻] 匹配 articles 中第一个 央视新闻 的文章，以此类推。
     """
-    today = datetime.now()
-    date_str = today.strftime("%Y-%m-%d")
-    weekday_map = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
-    weekday = weekday_map[today.weekday()]
+    import re
+    from collections import defaultdict
 
-    if output_path is None:
-        output_path = REPORTS_DIR / f"daily_report_{today.strftime('%Y%m%d')}.html"
+    # 按来源名称分组文章（保留顺序）
+    source_groups = defaultdict(list)
+    for art in articles:
+        name = art.get("source", "")
+        if name:
+            source_groups[name].append(art)
 
-    # 处理新闻内容
-    is_combined = news_summary.get("combined", False)
+    # 记录每个来源已使用的索引
+    used = defaultdict(int)
 
-    if is_combined and news_summary.get("political"):
-        # 综合报告模式
-        news_content = _md_to_html(news_summary["political"])
-    else:
-        political_content = _md_to_html(news_summary.get("political", ""))
-        industry_content = _md_to_html(news_summary.get("industry", ""))
-        news_content = political_content + "\n" + industry_content
+    def replace_func(match):
+        source_name = match.group(1)
+        group = source_groups.get(source_name, [])
+        idx = used[source_name]
+        if idx < len(group) and group[idx].get("link"):
+            url = group[idx]["link"]
+            used[source_name] += 1
+            return f'<a href="{url}" target="_blank" rel="noopener" class="source-link">{source_name}</a>'
+        return f'<span class="source-tag">{source_name}</span>'
 
-    # 处理图表
-    chart_html = ""
-    chart_rel_path = ""
-    if chart_path and chart_path.exists():
-        # 计算相对于报告目录的路径
-        try:
-            chart_rel_path = chart_path.relative_to(REPORTS_DIR.parent).as_posix()
-        except ValueError:
-            # 如果不在项目目录内，复制到报告目录
-            import shutil
-            dest = REPORTS_DIR / chart_path.name
-            shutil.copy2(chart_path, dest)
-            chart_rel_path = chart_path.name
-
-        chart_html = f"""
-        <div class="section">
-            <h2>📊 行业市场价格走势</h2>
-            <div class="chart-container">
-                <img src="../{chart_rel_path}" alt="价格走势图"
-                     style="width:100%; max-width:1200px; border-radius:8px;">
-            </div>
-        </div>
-        """
-
-    # 市场价格分析
-    market_html = ""
-    if market_analysis:
-        market_content = _md_to_html(market_analysis)
-        market_html = f"""
-        <div class="section">
-            {market_content}
-        </div>
-        """
-
-    # 构建完整HTML
-    html = f"""<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{date_str} AIGC行业新闻日报</title>
-    <style>
-        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-        body {{
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
-                         "Microsoft YaHei", "Helvetica Neue", sans-serif;
-            background: #f0f2f5;
-            color: #333;
-            line-height: 1.8;
-        }}
-        .container {{
-            max-width: 900px;
-            margin: 0 auto;
-            padding: 20px;
-        }}
-        .header {{
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 40px 30px;
-            border-radius: 16px;
-            margin-bottom: 24px;
-            text-align: center;
-        }}
-        .header h1 {{ font-size: 28px; margin-bottom: 8px; }}
-        .header .subtitle {{ font-size: 14px; opacity: 0.85; }}
-        .header .date {{ font-size: 16px; margin-top: 12px; opacity: 0.9; }}
-        .section {{
-            background: white;
-            border-radius: 12px;
-            padding: 28px 30px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-        }}
-        .section h2 {{
-            font-size: 20px;
-            color: #1a1a2e;
-            border-bottom: 3px solid #667eea;
-            padding-bottom: 10px;
-            margin-bottom: 18px;
-        }}
-        .section h3 {{
-            font-size: 16px;
-            color: #444;
-            margin: 16px 0 8px 0;
-            padding-left: 8px;
-            border-left: 3px solid #764ba2;
-        }}
-        .section ul {{ padding-left: 20px; }}
-        .section li {{ margin-bottom: 6px; }}
-        .section p {{ margin-bottom: 10px; }}
-        .section blockquote {{
-            border-left: 4px solid #667eea;
-            padding: 10px 16px;
-            margin: 12px 0;
-            background: #f8f9ff;
-            border-radius: 4px;
-            color: #555;
-            font-size: 14px;
-        }}
-        .section strong {{ color: #1a1a2e; }}
-        .footer {{
-            text-align: center;
-            color: #999;
-            font-size: 12px;
-            padding: 20px;
-        }}
-        .chart-container {{
-            margin: 16px 0;
-            text-align: center;
-        }}
-        .tag {{
-            display: inline-block;
-            background: #e8eaff;
-            color: #667eea;
-            padding: 2px 10px;
-            border-radius: 12px;
-            font-size: 12px;
-            margin-right: 4px;
-        }}
-        .insight-box {{
-            background: linear-gradient(135deg, #fff3e0, #ffe0b2);
-            border-radius: 8px;
-            padding: 16px 20px;
-            margin: 12px 0;
-            border-left: 4px solid #ff9800;
-        }}
-        .insight-box p {{ margin-bottom: 4px; color: #e65100; }}
-        @media (max-width: 600px) {{
-            .container {{ padding: 10px; }}
-            .section {{ padding: 16px; }}
-            .header {{ padding: 24px 16px; }}
-        }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>🤖 AIGC 行业新闻日报</h1>
-            <div class="date">{date_str} {weekday}</div>
-            <div class="subtitle">
-                覆盖时政要闻 · AIGC行业动态 · 市场价格走势
-                <br>
-                <span class="tag">AI漫剧短剧</span>
-                <span class="tag">AI广告</span>
-                <span class="tag">AI宣传片</span>
-            </div>
-        </div>
-
-        <div class="section">
-            {news_content}
-        </div>
-
-        {chart_html}
-
-        {market_html}
-
-        <div class="footer">
-            <p>由 AI 自动生成 · 仅供行业参考 · {datetime.now().strftime('%Y-%m-%d %H:%M')}</p>
-            <p>数据来源: 公开RSS/新闻源 · 价格数据为行业估算</p>
-        </div>
-    </div>
-</body>
-</html>"""
-
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(html, encoding="utf-8")
-    logger.info(f"日报已生成: {output_path}")
-
-    return output_path
+    return re.sub(r'\[来源：(.+?)\]', replace_func, html_text)
 
 
-def _md_to_html(md_text: str) -> str:
-    """简单的Markdown到HTML转换（处理日报格式）"""
+def _mark_ai_red(html_text: str) -> str:
+    import re
+    ai_keywords = [
+        "人工智能", "AI", "大模型", "智能",
+        "人工智慧", "深度学习", "机器学习",
+        "AGI", "AIGC", "生成式",
+    ]
+    for kw in ai_keywords:
+        pattern = re.compile(
+            r'(<li>)(.*?' + re.escape(kw) + r'.*?</li>)',
+            re.IGNORECASE,
+        )
+        html_text = pattern.sub(
+            r'\1<span class="ai-highlight">\2</span>',
+            html_text,
+        )
+    html_text = html_text.replace(
+        '<span class="ai-highlight"><span class="ai-highlight">',
+        '<span class="ai-highlight">',
+    ).replace(
+        '</span></span>', '</span>',
+    )
+    return html_text
+
+
+def _summary_to_html(md_text: str, articles: List[Dict] = None,
+                     mark_ai: bool = False) -> str:
+    """将Markdown总结转为HTML，并注入可点击的溯源链接"""
     if not md_text:
         return ""
 
@@ -230,7 +85,6 @@ def _md_to_html(md_text: str) -> str:
     in_list = False
 
     for line in lines:
-        # 标题
         if line.startswith("## "):
             if in_list:
                 html_lines.append("</ul>")
@@ -249,15 +103,21 @@ def _md_to_html(md_text: str) -> str:
                 in_list = False
             html_lines.append(f'<h4>{line[5:]}</h4>')
 
-        # 列表项
         elif line.startswith("- ") or line.startswith("* "):
             if not in_list:
                 html_lines.append("<ul>")
                 in_list = True
             content = line[2:]
-            # 处理加粗
             content = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', content)
-            html_lines.append(f'<li>{content}</li>')
+            content = re.sub(
+                r'(https?://[^\s]+)',
+                r'<a href="\1" target="_blank" rel="noopener">\1</a>',
+                content,
+            )
+            if mark_ai:
+                html_lines.append(f'<li><span class="ai-check">{content}</span></li>')
+            else:
+                html_lines.append(f'<li>{content}</li>')
 
         elif line.startswith("1. ") or line.startswith("2. "):
             if not in_list:
@@ -265,9 +125,13 @@ def _md_to_html(md_text: str) -> str:
                 in_list = True
             content = re.sub(r'^\d+\.\s*', '', line)
             content = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', content)
+            content = re.sub(
+                r'(https?://[^\s]+)',
+                r'<a href="\1" target="_blank" rel="noopener">\1</a>',
+                content,
+            )
             html_lines.append(f'<li>{content}</li>')
 
-        # 引用
         elif line.startswith("> "):
             if in_list:
                 html_lines.append("</ul>")
@@ -275,33 +139,335 @@ def _md_to_html(md_text: str) -> str:
             content = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', line[2:])
             html_lines.append(f'<blockquote>{content}</blockquote>')
 
-        # 分隔线
         elif line.strip() == "---":
             if in_list:
                 html_lines.append("</ul>")
                 in_list = False
             html_lines.append("<hr>")
 
-        # 空行
         elif not line.strip():
             if in_list:
                 html_lines.append("</ul>")
                 in_list = False
             html_lines.append("<br>")
 
-        # 普通段落
         else:
             if in_list:
                 html_lines.append("</ul>")
                 in_list = False
             content = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', line)
-            # 检查是否是启示框
-            if "启示" in content or "洞察" in content:
-                html_lines.append(f'<p><strong>{content}</strong></p>')
-            else:
-                html_lines.append(f'<p>{content}</p>')
+            content = re.sub(
+                r'(https?://[^\s]+)',
+                r'<a href="\1" target="_blank" rel="noopener">\1</a>',
+                content,
+            )
+            html_lines.append(f'<p>{content}</p>')
 
     if in_list:
         html_lines.append("</ul>")
 
-    return "\n".join(html_lines)
+    result = "\n".join(html_lines)
+
+    # 注入可点击的溯源链接
+    if articles:
+        result = _inject_source_links(result, articles)
+
+    if mark_ai:
+        result = _mark_ai_red(result)
+
+    return result
+
+
+def generate_political_report(
+    summary_text: str,
+    articles: List[Dict],
+    hangzhou_policy_summary: str = "",
+    hangzhou_policy_articles: List[Dict] = None,
+) -> Path:
+    """生成时政日报HTML"""
+    today_str = _chinese_date()
+    weekday_map = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+    weekday = weekday_map[datetime.now().weekday()]
+
+    filename = f"{today_str}时政日报.html"
+    output_path = MONTH_DIR / filename
+
+    news_html = _summary_to_html(summary_text, articles=articles, mark_ai=True)
+
+    policy_html = ""
+    if hangzhou_policy_summary:
+        policy_html = f'''
+        <div class="section policy-section">
+            <h2>杭州市创业扶持政策动态</h2>
+            <div class="policy-content">
+                {_summary_to_html(hangzhou_policy_summary, articles=hangzhou_policy_articles)}
+            </div>
+        </div>'''
+
+    html = f"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{today_str} 时政日报</title>
+    <style>
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, "PingFang SC",
+                         "Microsoft YaHei", "Noto Sans SC", sans-serif;
+            background: #f5f6fa;
+            color: #2d3436;
+            line-height: 1.9;
+        }}
+        .container {{
+            max-width: 860px;
+            margin: 0 auto;
+            padding: 20px;
+        }}
+        .header {{
+            background: linear-gradient(135deg, #8b0000 0%, #cc0000 50%, #ff4444 100%);
+            color: white;
+            padding: 48px 36px;
+            border-radius: 16px;
+            margin-bottom: 24px;
+            position: relative;
+            overflow: hidden;
+        }}
+        .header::before {{
+            content: "新闻联播";
+            position: absolute;
+            right: 20px;
+            top: 10px;
+            font-size: 80px;
+            opacity: 0.1;
+            font-weight: bold;
+            letter-spacing: 8px;
+        }}
+        .header h1 {{ font-size: 28px; font-weight: 700; margin-bottom: 6px; }}
+        .header .date {{ font-size: 16px; opacity: 0.9; margin-top: 8px; }}
+        .header .subtitle {{ font-size: 13px; opacity: 0.7; margin-top: 4px; }}
+        .section {{
+            background: white;
+            border-radius: 12px;
+            padding: 28px 32px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+        }}
+        .section h2 {{
+            font-size: 20px;
+            color: #8b0000;
+            border-bottom: 3px solid #cc0000;
+            padding-bottom: 10px;
+            margin-bottom: 18px;
+        }}
+        .section h3 {{
+            font-size: 16px;
+            color: #2d3436;
+            margin: 18px 0 10px 0;
+            padding-left: 10px;
+            border-left: 3px solid #cc0000;
+        }}
+        .section h4 {{ font-size: 15px; color: #555; margin: 14px 0 8px 0; }}
+        .section ul {{ padding-left: 20px; }}
+        .section li {{ margin-bottom: 8px; font-size: 15px; }}
+        .section li::marker {{ color: #cc0000; }}
+        .section p {{ margin-bottom: 10px; font-size: 15px; }}
+        .section blockquote {{
+            border-left: 4px solid #cc0000; padding: 12px 18px; margin: 12px 0;
+            background: #fef2f2; border-radius: 4px; color: #555; font-size: 14px;
+        }}
+        .section strong {{ color: #2d3436; }}
+        .section hr {{ border: none; border-top: 1px solid #eee; margin: 16px 0; }}
+        .ai-highlight {{ color: #cc0000; font-weight: bold; }}
+        .policy-section {{ border-left: 4px solid #e67e22; }}
+        .policy-section h2 {{ color: #e67e22; border-bottom-color: #e67e22; }}
+        .policy-content {{ background: #fffaf0; border-radius: 8px; padding: 12px 16px; }}
+        .source-link {{
+            display: inline-block;
+            background: #fef2f2;
+            color: #cc0000;
+            font-size: 12px;
+            padding: 1px 10px;
+            border-radius: 10px;
+            margin: 0 2px;
+            white-space: nowrap;
+            text-decoration: none;
+            transition: background 0.2s;
+        }}
+        .source-link:hover {{
+            background: #fecaca;
+            text-decoration: underline;
+        }}
+        .source-tag {{
+            display: inline-block;
+            background: #fef2f2;
+            color: #cc0000;
+            font-size: 12px;
+            padding: 1px 10px;
+            border-radius: 10px;
+            margin: 0 2px;
+            white-space: nowrap;
+        }}
+        .footer {{
+            text-align: center; color: #aaa; font-size: 12px;
+            padding: 20px; line-height: 1.8;
+        }}
+        @media (max-width: 600px) {{
+            .container {{ padding: 10px; }}
+            .section {{ padding: 16px; }}
+            .header {{ padding: 28px 18px; }}
+            .header::before {{ font-size: 40px; right: 10px; top: 6px; }}
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>时政日报</h1>
+            <div class="date">{today_str} {weekday}</div>
+            <div class="subtitle">央视新闻 · 人民日报 · 新华社 · 国内权威媒体</div>
+        </div>
+
+        <div class="section">
+            {news_html}
+        </div>
+
+        {policy_html}
+
+        <div class="footer">
+            <p>由人工智能自动生成 · 仅供参考 · {datetime.now().strftime('%Y年%m月%d日 %H:%M')}</p>
+            <p>数据来源：央视新闻 · 人民日报 · 新华社 · 环球网 · 中国新闻网 · 央广网 · 光明网 等</p>
+        </div>
+    </div>
+</body>
+</html>"""
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(html, encoding="utf-8")
+    logger.info(f"时政日报已生成: {output_path}")
+    return output_path
+
+
+def generate_industry_report(
+    summary_text: str,
+    articles: List[Dict],
+) -> Path:
+    """生成AI行业日报HTML"""
+    today_str = _chinese_date()
+    weekday_map = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+    weekday = weekday_map[datetime.now().weekday()]
+
+    filename = f"{today_str}AI日报.html"
+    output_path = MONTH_DIR / filename
+
+    news_html = _summary_to_html(summary_text, articles=articles)
+
+    html = f"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{today_str} AI日报</title>
+    <style>
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, "PingFang SC",
+                         "Microsoft YaHei", "Noto Sans SC", sans-serif;
+            background: #f0f2f5;
+            color: #1a1a2e;
+            line-height: 1.9;
+        }}
+        .container {{ max-width: 860px; margin: 0 auto; padding: 20px; }}
+        .header {{
+            background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+            color: white; padding: 48px 36px; border-radius: 16px;
+            margin-bottom: 24px; position: relative; overflow: hidden;
+        }}
+        .header::after {{
+            content: ""; position: absolute; top: -50%; right: -20%;
+            width: 300px; height: 300px;
+            background: radial-gradient(circle, rgba(102,126,234,0.15) 0%, transparent 70%);
+            border-radius: 50%;
+        }}
+        .header h1 {{ font-size: 28px; font-weight: 700; margin-bottom: 6px; position: relative; z-index: 1; }}
+        .header .date {{ font-size: 16px; opacity: 0.8; margin-top: 8px; position: relative; z-index: 1; }}
+        .header .subtitle {{ font-size: 13px; opacity: 0.6; margin-top: 4px; position: relative; z-index: 1; }}
+        .section {{
+            background: white; border-radius: 12px; padding: 28px 32px;
+            margin-bottom: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+        }}
+        .section h2 {{
+            font-size: 20px; color: #1a1a2e;
+            border-bottom: 3px solid #667eea; padding-bottom: 10px; margin-bottom: 18px;
+        }}
+        .section h3 {{
+            font-size: 16px; color: #1a1a2e;
+            margin: 18px 0 10px 0; padding-left: 10px; border-left: 3px solid #667eea;
+        }}
+        .section h4 {{ font-size: 15px; color: #555; margin: 14px 0 8px 0; }}
+        .section ul {{ padding-left: 20px; }}
+        .section li {{ margin-bottom: 8px; font-size: 15px; }}
+        .section li::marker {{ color: #667eea; }}
+        .section p {{ margin-bottom: 10px; font-size: 15px; }}
+        .section blockquote {{
+            border-left: 4px solid #667eea; padding: 12px 18px; margin: 12px 0;
+            background: #f8f9ff; border-radius: 4px; color: #555; font-size: 14px;
+        }}
+        .section strong {{ color: #1a1a2e; }}
+        .section hr {{ border: none; border-top: 1px solid #eee; margin: 16px 0; }}
+        .source-link {{
+            display: inline-block; background: #eef0ff; color: #5b6abf;
+            font-size: 12px; padding: 1px 10px; border-radius: 10px;
+            margin: 0 2px; white-space: nowrap; text-decoration: none;
+            transition: background 0.2s;
+        }}
+        .source-link:hover {{ background: #d0d5ff; text-decoration: underline; }}
+        .source-tag {{
+            display: inline-block; background: #eef0ff; color: #5b6abf;
+            font-size: 12px; padding: 1px 10px; border-radius: 10px;
+            margin: 0 2px; white-space: nowrap;
+        }}
+        .section-tag {{
+            display: inline-block; background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white; padding: 2px 12px; border-radius: 12px;
+            font-size: 12px; margin-right: 4px;
+        }}
+        .footer {{ text-align: center; color: #aaa; font-size: 12px; padding: 20px; line-height: 1.8; }}
+        @media (max-width: 600px) {{
+            .container {{ padding: 10px; }}
+            .section {{ padding: 16px; }}
+            .header {{ padding: 28px 18px; }}
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>AI 行业日报</h1>
+            <div class="date">{today_str} {weekday}</div>
+            <div class="subtitle">
+                AIGC影视传媒 · 大模型动态 · 行业趋势
+                <br>
+                <span class="section-tag">AI视频</span>
+                <span class="section-tag">AI短剧</span>
+                <span class="section-tag">AI广告</span>
+                <span class="section-tag">数字人</span>
+            </div>
+        </div>
+
+        <div class="section">
+            {news_html}
+        </div>
+
+        <div class="footer">
+            <p>由人工智能自动生成 · 仅供行业参考 · {datetime.now().strftime('%Y年%m月%d日 %H:%M')}</p>
+            <p>数据来源：TechCrunch · Variety · Hollywood Reporter · 爱范儿 · 36氪 等</p>
+        </div>
+    </div>
+</body>
+</html>"""
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(html, encoding="utf-8")
+    logger.info(f"AI日报已生成: {output_path}")
+    return output_path

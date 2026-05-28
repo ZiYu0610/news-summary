@@ -1,0 +1,6 @@
+12:38:57  正在验证 API 连接（https://api.deepseek.com，模型: deepseek-v4-flash）...
+12:38:57  HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK"
+12:38:58  API响应状态码: 200
+12:38:58  API响应keys: ['id', 'object', 'created', 'model', 'choices', 'usage', 'system_fingerprint']
+12:38:58  API响应内容前50字: 
+12:38:58  API 响应为空

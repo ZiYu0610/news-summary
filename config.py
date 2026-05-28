@@ -1,49 +1,52 @@
 """全局配置文件"""
 import os
+import sys
 from pathlib import Path
+from datetime import datetime
 
-# 项目路径
-BASE_DIR = Path(__file__).parent
+# 项目路径（支持 PyInstaller 打包模式）
+if getattr(sys, 'frozen', False):
+    BASE_DIR = Path(sys.executable).parent
+else:
+    BASE_DIR = Path(__file__).parent
 DATA_DIR = BASE_DIR / "data"
 NEWS_DIR = DATA_DIR / "news"
 REPORTS_DIR = DATA_DIR / "reports"
 PRICE_FILE = DATA_DIR / "prices.json"
 
+# 报告按月分类的目录，如：data/reports/2026年5月/
+MONTH_DIR = REPORTS_DIR / datetime.now().strftime("%Y年%m月")
+
 # 确保目录存在
-for d in [DATA_DIR, NEWS_DIR, REPORTS_DIR]:
+for d in [DATA_DIR, NEWS_DIR, REPORTS_DIR, MONTH_DIR]:
     d.mkdir(parents=True, exist_ok=True)
 
-# ===== Claude API 配置 =====
-# 支持 ANTHROPIC_API_KEY 或 ANTHROPIC_AUTH_TOKEN
-# 如果用了兼容DeepSeek或其他第三方API，请设置 ANTHROPIC_BASE_URL
+# ===== Claude API 配置（支持本地配置文件覆盖） =====
 CLAUDE_API_KEY = os.getenv("ANTHROPIC_API_KEY") or os.getenv("ANTHROPIC_AUTH_TOKEN", "")
 CLAUDE_API_BASE_URL = os.getenv("ANTHROPIC_BASE_URL", "")
-CLAUDE_API_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-6-20250514")
+CLAUDE_API_MODEL = os.getenv("ANTHROPIC_MODEL", "deepseek-chat")
+
+# 从本地配置文件读取覆盖（GUI设置会写入此文件）
+SETTINGS_FILE = DATA_DIR / "settings.json"
+if SETTINGS_FILE.exists():
+    try:
+        import json as _json
+        _s = _json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
+        if _s.get("api_key"):
+            CLAUDE_API_KEY = _s["api_key"]
+        if _s.get("base_url"):
+            CLAUDE_API_BASE_URL = _s["base_url"]
+        if _s.get("model"):
+            CLAUDE_API_MODEL = _s["model"]
+    except Exception:
+        pass
 
 # ===== 新闻采集配置 =====
 
-# ===== 新闻采集配置 =====
+# 时政新闻源（以国内权威媒体为主）
+POLITICAL_NEWS_SOURCES = []  # RSS源留空，全部使用网页抓取
 
-# 时政新闻源（已验证可用的RSS）
-POLITICAL_NEWS_SOURCES = [
-    {
-        "name": "BBC中文",
-        "type": "rss",
-        "url": "https://www.bbc.com/zhongwen/simp/index.xml",
-    },
-    {
-        "name": "FT中文",
-        "type": "rss",
-        "url": "https://www.ftchinese.com/rss/news",
-    },
-    {
-        "name": "Solidot",
-        "type": "rss",
-        "url": "https://www.solidot.org/index.rss",
-    },
-]
-
-# 时政新闻网页源（补充RSS，覆盖央视等国内主流媒体）
+# 时政新闻网页源（国内主流媒体）
 POLITICAL_WEB_SOURCES = [
     {
         "name": "央视新闻",
@@ -57,10 +60,91 @@ POLITICAL_WEB_SOURCES = [
         "url": "https://www.cctv.com/",
         "category": "political",
     },
+    {
+        "name": "人民日报",
+        "type": "web",
+        "url": "https://www.people.com.cn/",
+        "category": "political",
+    },
+    {
+        "name": "新华社",
+        "type": "web",
+        "url": "http://www.xinhuanet.com/",
+        "category": "political",
+    },
+    {
+        "name": "环球网",
+        "type": "web",
+        "url": "https://www.huanqiu.com/",
+        "category": "political",
+    },
+    {
+        "name": "中国新闻网",
+        "type": "web",
+        "url": "https://www.chinanews.com.cn/",
+        "category": "political",
+    },
+    {
+        "name": "央广网",
+        "type": "web",
+        "url": "https://www.cnr.cn/",
+        "category": "political",
+    },
+    {
+        "name": "光明网",
+        "type": "web",
+        "url": "https://www.gmw.cn/",
+        "category": "political",
+    },
+    {
+        "name": "中国青年网",
+        "type": "web",
+        "url": "https://www.youth.cn/",
+        "category": "political",
+    },
+    {
+        "name": "浙江新闻",
+        "type": "web",
+        "url": "https://zjnews.zjol.com.cn/",
+        "category": "political",
+    },
 ]
 
-# AIGC 行业新闻源（已验证可用的RSS）
-# 重点覆盖 AI影视传媒（AI视频/AI短剧/AI广告/AI宣传片）方向
+# 杭州市创业扶持政策信息源
+HANGZHOU_POLICY_SOURCES = [
+    {
+        "name": "杭州市人民政府",
+        "type": "web",
+        "url": "https://www.hangzhou.gov.cn/",
+        "category": "policy",
+    },
+    {
+        "name": "杭州人社",
+        "type": "web",
+        "url": "http://hrss.hangzhou.gov.cn/",
+        "category": "policy",
+    },
+    {
+        "name": "杭州科技局",
+        "type": "web",
+        "url": "https://kj.hangzhou.gov.cn/",
+        "category": "policy",
+    },
+    {
+        "name": "杭州发改",
+        "type": "web",
+        "url": "https://drc.hangzhou.gov.cn/",
+        "category": "policy",
+    },
+    {
+        "name": "浙江政务服务网",
+        "type": "web",
+        "url": "https://www.zj.gov.cn/",
+        "category": "policy",
+    },
+]
+
+# AIGC 行业新闻源（AI影视传媒方向）
 AIGC_NEWS_SOURCES = [
     {
         "name": "爱范儿",
@@ -73,19 +157,9 @@ AIGC_NEWS_SOURCES = [
         "url": "https://techcrunch.com/feed/",
     },
     {
-        "name": "AI News",
-        "type": "rss",
-        "url": "https://www.artificialintelligence-news.com/feed/",
-    },
-    {
         "name": "ArsTechnica",
         "type": "rss",
         "url": "https://feeds.arstechnica.com/arstechnica/index",
-    },
-    {
-        "name": "Hacker News",
-        "type": "rss",
-        "url": "https://news.ycombinator.com/rss",
     },
     {
         "name": "Variety",
@@ -97,27 +171,31 @@ AIGC_NEWS_SOURCES = [
         "type": "rss",
         "url": "https://www.hollywoodreporter.com/feed/",
     },
+    {
+        "name": "AI News",
+        "type": "rss",
+        "url": "https://www.artificialintelligence-news.com/feed/",
+    },
+    {
+        "name": "Hacker News",
+        "type": "rss",
+        "url": "https://news.ycombinator.com/rss",
+    },
 ]
 
-# 网页抓取源（补充RSS，重点覆盖AI影视传媒方向）
+# 网页抓取源（补充AI行业信息）
 WEB_SCRAPE_SOURCES = [
-    {
-        "name": "36氪",
-        "type": "web",
-        "url": "https://36kr.com/search/articles/AI%E7%94%9F%E6%88%90",
-        "category": "industry",
-    },
-    {
-        "name": "虎嗅AI",
-        "type": "web",
-        "url": "https://www.huxiu.com/channel/AI.html",
-        "category": "industry",
-    },
     {
         "name": "国家广电总局",
         "type": "web",
         "url": "https://www.nrta.gov.cn/",
         "category": "industry_policy",
+    },
+    {
+        "name": "36氪AI",
+        "type": "web",
+        "url": "https://36kr.com/search/articles/AI%E7%94%9F%E6%88%90",
+        "category": "industry",
     },
     {
         "name": "1905电影网",
@@ -127,7 +205,7 @@ WEB_SCRAPE_SOURCES = [
     },
 ]
 
-# 搜索关键词（用于补充采集）
+# 搜索关键词（用于AI行业过滤）
 AIGC_KEYWORDS = [
     "AI漫剧", "AI短剧", "AIGC视频", "AI广告", "AI宣传片",
     "AI视频生成", "可灵AI", "Sora", "Runway", "Pika",
@@ -136,47 +214,13 @@ AIGC_KEYWORDS = [
 
 # ===== 价格追踪配置 =====
 PRICE_CATEGORIES = [
-    {
-        "id": "ai_video",
-        "name": "AI视频生成",
-        "unit": "元/秒",
-        "description": "AI生成视频的行业报价",
-    },
-    {
-        "id": "ai_image",
-        "name": "AI图片生成",
-        "unit": "元/张",
-        "description": "AI生成图片的行业报价",
-    },
-    {
-        "id": "ai_voice",
-        "name": "AI语音合成",
-        "unit": "元/千字",
-        "description": "AI配音/语音合成报价",
-    },
-    {
-        "id": "ai_short_drama",
-        "name": "AI短剧制作",
-        "unit": "万元/部",
-        "description": "AI短剧全案制作成本",
-    },
-    {
-        "id": "ai_ad",
-        "name": "AI广告制作",
-        "unit": "万元/条",
-        "description": "AI广告/宣传片制作报价",
-    },
-    {
-        "id": "digital_human",
-        "name": "数字人定制",
-        "unit": "万元/个",
-        "description": "数字人克隆/定制报价",
-    },
+    {"id": "ai_video", "name": "AI视频生成", "unit": "元/秒", "description": "AI生成视频的行业报价"},
+    {"id": "ai_image", "name": "AI图片生成", "unit": "元/张", "description": "AI生成图片的行业报价"},
+    {"id": "ai_voice", "name": "AI语音合成", "unit": "元/千字", "description": "AI配音/语音合成报价"},
+    {"id": "ai_short_drama", "name": "AI短剧制作", "unit": "万元/部", "description": "AI短剧全案制作成本"},
+    {"id": "ai_ad", "name": "AI广告制作", "unit": "万元/条", "description": "AI广告/宣传片制作报价"},
+    {"id": "digital_human", "name": "数字人定制", "unit": "万元/个", "description": "数字人克隆/定制报价"},
 ]
 
 # ===== 报告配置 =====
 REPORT_TITLE = "AI 行业新闻日报"
-REPORT_LANGUAGE = "zh-CN"
-
-# ===== 调度配置 =====
-SCHEDULE_TIME = "09:00"  # 每天早上9点运行

@@ -1,18 +1,9 @@
 #!/usr/bin/env python3
 """AI 新闻日报系统 - 主入口
 
-每天早上9点自动运行，完成以下任务：
-1. 采集昨日时政新闻和AIGC行业新闻
-2. 使用Claude API进行智能总结
-3. 更新行业价格数据并生成走势图
-4. 生成HTML格式日报
-
 使用方法：
-  python main.py              # 立即运行一次
-  python main.py --init-data  # 运行并初始化示例价格数据
-  python main.py --serve      # 启动本地HTTP服务查看日报
-  python main.py --schedule   # 启动内调度循环
-  python main.py --install    # 注册Windows任务计划（需管理员）
+  python main.py              # 生成时政日报和AI日报
+  python main.py --init-data  # 初始化示例价格数据后生成
 """
 import argparse
 import logging
@@ -23,10 +14,7 @@ from pathlib import Path
 BASE_DIR = Path(__file__).parent
 sys.path.insert(0, str(BASE_DIR))
 
-from config import (
-    SCHEDULE_TIME, REPORTS_DIR,
-    CLAUDE_API_KEY,
-)
+from config import CLAUDE_API_KEY
 
 logging.basicConfig(
     level=logging.INFO,
@@ -36,19 +24,24 @@ logging.basicConfig(
 logger = logging.getLogger("main")
 
 
-def run_daily():
-    """执行完整的日报生成流程"""
+def run_daily(mode: str = "all"):
+    """执行日报生成流程
+
+    Args:
+        mode: "all" 时政+AI, "political" 仅时政, "industry" 仅AI
+    """
     from collector.news_collector import collect_all, save_news
-    from summarizer.summarizer import summarize_all
-    from price_tracker.price_tracker import PriceTracker
-    from report.report_generator import generate_report
+    from summarizer.summarizer import summarize_political, summarize_industry
+
+    mode_label = {"all": "时政+AI", "political": "时政", "industry": "AI"}
+    label = mode_label.get(mode, "时政+AI")
 
     logger.info("=" * 50)
-    logger.info("🚀 开始生成今日新闻日报")
+    logger.info(f"开始生成今日{label}日报")
     logger.info("=" * 50)
 
     # Step 1: 采集新闻
-    logger.info("\n📡 [Step 1/4] 采集新闻...")
+    logger.info("第一步：采集新闻...")
     try:
         news_data = collect_all(days=2)
         save_news(news_data)
@@ -61,103 +54,133 @@ def run_daily():
             logger.error("无可用新闻数据，终止")
             return False
 
+    political_articles = news_data.get("political", [])
+    industry_articles = news_data.get("industry", [])
+    hangzhou_policy_articles = news_data.get("hangzhou_policy", [])
+
     # Step 2: AI总结
-    logger.info("\n🤖 [Step 2/4] AI总结新闻...")
-    try:
-        news_summary = summarize_all(news_data)
-    except Exception as e:
-        logger.error(f"AI总结失败: {e}")
-        # 降级：原始标题列表
-        news_summary = {
-            "political": "\n".join(
-                f"- {a['title']}" for a in news_data.get("political", [])[:15]
-            ),
-            "industry": "\n".join(
-                f"- {a['title']}" for a in news_data.get("industry", [])[:15]
-            ),
-            "combined": False,
-        }
+    logger.info("第二步：人工智能总结新闻...")
 
-    # Step 3: 价格走势图
-    logger.info("\n📊 [Step 3/4] 更新价格数据并生成图表...")
-    chart_path = None
-    market_analysis = ""
-    try:
-        tracker = PriceTracker()
-        chart_file = REPORTS_DIR / f"price_chart_{Path(__file__).parent.name}.png"
-        chart_path = tracker.generate_chart(chart_file)
-        market_analysis = tracker.generate_market_analysis()
-    except Exception as e:
-        logger.warning(f"价格图表生成失败: {e}")
+    political_summary = ""
+    industry_summary = ""
+    hangzhou_policy_summary = ""
 
-    # Step 4: 生成HTML日报
-    logger.info("\n📝 [Step 4/4] 生成日报...")
-    try:
-        report_path = generate_report(
-            news_summary=news_summary,
-            chart_path=chart_path,
-            market_analysis=market_analysis,
-        )
-        logger.info(f"\n✅ 日报生成完成！")
-        logger.info(f"📄 文件: {report_path}")
-        logger.info(f"🔗 打开方式: 浏览器打开此文件即可查看")
+    if mode in ("all", "political"):
+        try:
+            political_summary = summarize_political(political_articles)
+        except Exception as e:
+            logger.error(f"时政新闻AI总结失败: {e}")
+            political_summary = "\n".join(
+                f"- {a['title']}" for a in political_articles[:15]
+            )
+
+        # 杭州创业政策总结
+        if hangzhou_policy_articles:
+            try:
+                from summarizer.summarizer import ClaudeClient
+                client = ClaudeClient()
+                content = "\n".join(
+                    f"- [{a['source']}] {a['title']}" for a in hangzhou_policy_articles[:20]
+                )
+                prompt = f"请总结以下杭州市创业扶持政策信息（截至{__import__('datetime').datetime.now().strftime('%Y年%m月%d日')}）：\n\n{content}\n\n请按政策类型分类整理，标注每条来源和发布日期。关注创业补贴、人才引进、科技创新、税收优惠等方面。"
+                system = "你是一位政策分析师，擅长解读各类创业扶持政策。请简洁清晰地总结以下政策信息，每条标注来源。"
+                hangzhou_policy_summary = client.chat(system, [{"role": "user", "content": prompt}])
+            except Exception as e:
+                logger.error(f"杭州政策总结失败: {e}")
+                hangzhou_policy_summary = "\n".join(
+                    f"- {a['title']}" for a in hangzhou_policy_articles[:10]
+                )
+
+    if mode in ("all", "industry"):
+        try:
+            industry_summary = summarize_industry(industry_articles)
+        except Exception as e:
+            logger.error(f"行业新闻AI总结失败: {e}")
+            industry_summary = "\n".join(
+                f"- {a['title']}" for a in industry_articles[:15]
+            )
+
+    # Step 3: 生成HTML日报
+    logger.info("第三步：生成日报...")
+
+    from report.report_generator import generate_political_report, generate_industry_report
+
+    results = []
+
+    if mode in ("all", "political") and political_summary:
+        try:
+            path = generate_political_report(
+                summary_text=political_summary,
+                articles=political_articles,
+                hangzhou_policy_summary=hangzhou_policy_summary,
+                hangzhou_policy_articles=hangzhou_policy_articles,
+            )
+            logger.info(f"时政日报: {path}")
+            results.append(("political", path))
+        except Exception as e:
+            logger.error(f"时政日报生成失败: {e}")
+
+    if mode in ("all", "industry") and industry_summary:
+        try:
+            path = generate_industry_report(
+                summary_text=industry_summary,
+                articles=industry_articles,
+            )
+            logger.info(f"AI日报: {path}")
+            results.append(("industry", path))
+        except Exception as e:
+            logger.error(f"AI日报生成失败: {e}")
+
+    if results:
+        logger.info(f"生成完成！共生成 {len(results)} 份报告")
+        for t, p in results:
+            logger.info(f"   {p}")
         return True
-    except Exception as e:
-        logger.error(f"日报生成失败: {e}")
+    else:
+        logger.error("未生成任何报告")
         return False
 
 
-def serve_reports(port: int = 8000):
-    """启动本地HTTP服务查看历史日报"""
-    import http.server
-    import socketserver
+def generate_chart():
+    """单独生成价格走势图"""
+    from price_tracker.price_tracker import PriceTracker
+    from config import MONTH_DIR, REPORTS_DIR
 
-    os.chdir(REPORTS_DIR.parent)
-    handler = http.server.SimpleHTTPRequestHandler
-
-    logger.info(f"🌐 日报查看服务已启动")
-    logger.info(f"📂 报告目录: {REPORTS_DIR}")
-    logger.info(f"🔗 访问地址: http://localhost:{port}")
-    logger.info("按 Ctrl+C 停止")
-
-    with socketserver.TCPServer(("", port), handler) as httpd:
-        httpd.serve_forever()
+    logger.info("开始生成价格走势图...")
+    try:
+        tracker = PriceTracker()
+        chart_file = MONTH_DIR / f"价格走势图_{__import__('datetime').datetime.now().strftime('%Y%m%d')}.png"
+        chart_path = tracker.generate_chart(chart_file)
+        market_analysis = tracker.generate_market_analysis()
+        logger.info(f"价格走势图已生成: {chart_path}")
+        if market_analysis:
+            # 保存分析文本到同目录
+            analysis_file = MONTH_DIR / f"市场价格分析_{__import__('datetime').datetime.now().strftime('%Y%m%d')}.txt"
+            analysis_file.write_text(market_analysis, encoding="utf-8")
+            logger.info(f"市场价格分析已保存: {analysis_file}")
+        return chart_path
+    except Exception as e:
+        logger.error(f"价格走势图生成失败: {e}")
+        return None
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="AI 新闻日报系统 - 每日9点自动生成AIGC行业日报"
+        description="AI 新闻日报系统"
     )
     parser.add_argument(
         "--init-data", action="store_true",
-        help="初始化示例价格数据后运行"
+        help="初始化示例价格数据"
     )
     parser.add_argument(
-        "--serve", action="store_true",
-        help="启动本地HTTP服务查看日报"
-    )
-    parser.add_argument(
-        "--schedule", action="store_true",
-        help="启动内调度循环（每隔30秒检查是否需要执行）"
-    )
-    parser.add_argument(
-        "--install", action="store_true",
-        help="注册Windows任务计划程序（需管理员权限）"
-    )
-    parser.add_argument(
-        "--port", type=int, default=8000,
-        help="HTTP服务端口（默认8000）"
+        "--chart", action="store_true",
+        help="仅生成价格走势图"
     )
 
     args = parser.parse_args()
 
-    # 检查API Key
     if not CLAUDE_API_KEY:
-        logger.warning("⚠️ ANTHROPIC_API_KEY 环境变量未设置")
-        logger.warning("AI总结功能将降级为简单标题列表（不经过AI处理）")
-        logger.warning("设置方式: $env:ANTHROPIC_API_KEY = 'your-key'")
-        logger.warning("或将其添加到系统环境变量中")
-        print()
+        logger.warning("ANTHROPIC_API_KEY 环境变量未设置，将使用降级模式")
 
     if args.init_data:
         from price_tracker.price_tracker import PriceTracker
@@ -165,26 +188,14 @@ def main():
         tracker.init_sample_data()
         logger.info("示例价格数据已初始化")
 
-    if args.serve:
-        import os
-        os.chdir(str(REPORTS_DIR.parent))
-        from scheduler.scheduler import run_schedule_loop
-        run_schedule_loop(run_daily, SCHEDULE_TIME)
+    if args.chart:
+        generate_chart()
+        return
 
-    elif args.install:
-        from scheduler.scheduler import install_task_scheduler
-        install_task_scheduler(BASE_DIR)
-
-    elif args.schedule:
-        from scheduler.scheduler import run_schedule_loop
-        run_schedule_loop(run_daily, SCHEDULE_TIME)
-
-    else:
-        # 默认：立即运行一次
+    if not args.init_data:
         success = run_daily()
         sys.exit(0 if success else 1)
 
 
 if __name__ == "__main__":
-    import os  # 用于serve模式
     main()
