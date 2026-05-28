@@ -24,7 +24,7 @@ CLAUDE_API_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-6-20250514")
 
 # ===== 新闻采集配置 =====
 
-# 时政新闻源（已验证可用的RSS）
+# 时政新闻RSS源（海内外权威媒体）
 POLITICAL_NEWS_SOURCES = [
     {
         "name": "BBC中文",
@@ -41,51 +41,58 @@ POLITICAL_NEWS_SOURCES = [
         "type": "rss",
         "url": "https://www.solidot.org/index.rss",
     },
+    {
+        "name": "Reuters",
+        "type": "rss",
+        "url": "https://www.reutersagency.com/feed/",
+    },
 ]
 
-# 时政新闻网页源（补充RSS，覆盖央视等国内主流媒体）
+# 时政新闻网页源（覆盖国内权威媒体）
 POLITICAL_WEB_SOURCES = [
     {
-        "name": "央视新闻",
+        "name": "央视新闻联播",
         "type": "web",
         "url": "https://news.cctv.com/",
         "category": "political",
     },
     {
-        "name": "央视网",
+        "name": "新华社",
         "type": "web",
-        "url": "https://www.cctv.com/",
+        "url": "http://www.xinhuanet.com/",
+        "category": "political",
+    },
+    {
+        "name": "人民日报",
+        "type": "web",
+        "url": "https://www.people.com.cn/",
+        "category": "political",
+    },
+    {
+        "name": "环球网",
+        "type": "web",
+        "url": "https://www.huanqiu.com/",
+        "category": "political",
+    },
+    {
+        "name": "中国新闻网",
+        "type": "web",
+        "url": "https://www.chinanews.com.cn/",
         "category": "political",
     },
 ]
 
-# AIGC 行业新闻源（已验证可用的RSS）
-# 重点覆盖 AI影视传媒（AI视频/AI短剧/AI广告/AI宣传片）方向
+# AIGC 行业新闻源（权威影视传媒与AI科技媒体）
 AIGC_NEWS_SOURCES = [
-    {
-        "name": "爱范儿",
-        "type": "rss",
-        "url": "https://www.ifanr.com/feed",
-    },
     {
         "name": "TechCrunch",
         "type": "rss",
         "url": "https://techcrunch.com/feed/",
     },
     {
-        "name": "AI News",
-        "type": "rss",
-        "url": "https://www.artificialintelligence-news.com/feed/",
-    },
-    {
         "name": "ArsTechnica",
         "type": "rss",
         "url": "https://feeds.arstechnica.com/arstechnica/index",
-    },
-    {
-        "name": "Hacker News",
-        "type": "rss",
-        "url": "https://news.ycombinator.com/rss",
     },
     {
         "name": "Variety",
@@ -97,12 +104,33 @@ AIGC_NEWS_SOURCES = [
         "type": "rss",
         "url": "https://www.hollywoodreporter.com/feed/",
     },
+    {
+        "name": "AI News",
+        "type": "rss",
+        "url": "https://www.artificialintelligence-news.com/feed/",
+    },
+    {
+        "name": "Hacker News",
+        "type": "rss",
+        "url": "https://news.ycombinator.com/rss",
+    },
+    {
+        "name": "爱范儿",
+        "type": "rss",
+        "url": "https://www.ifanr.com/feed",
+    },
 ]
 
-# 网页抓取源（补充RSS，重点覆盖AI影视传媒方向）
+# 网页抓取源（补充权威行业源）
 WEB_SCRAPE_SOURCES = [
     {
-        "name": "36氪",
+        "name": "国家广电总局",
+        "type": "web",
+        "url": "https://www.nrta.gov.cn/",
+        "category": "industry_policy",
+    },
+    {
+        "name": "36氪AI",
         "type": "web",
         "url": "https://36kr.com/search/articles/AI%E7%94%9F%E6%88%90",
         "category": "industry",
@@ -112,12 +140,6 @@ WEB_SCRAPE_SOURCES = [
         "type": "web",
         "url": "https://www.huxiu.com/channel/AI.html",
         "category": "industry",
-    },
-    {
-        "name": "国家广电总局",
-        "type": "web",
-        "url": "https://www.nrta.gov.cn/",
-        "category": "industry_policy",
     },
     {
         "name": "1905电影网",

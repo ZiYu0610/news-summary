@@ -36,15 +36,19 @@ logging.basicConfig(
 logger = logging.getLogger("main")
 
 
-def run_daily():
-    """执行完整的日报生成流程"""
+def run_daily(mode: str = "all"):
+    """执行日报生成流程
+
+    Args:
+        mode: "all" 生成时政+AI, "political" 仅时政, "industry" 仅AI
+    """
     from collector.news_collector import collect_all, save_news
-    from summarizer.summarizer import summarize_all
-    from price_tracker.price_tracker import PriceTracker
-    from report.report_generator import generate_report
+
+    mode_label = {"all": "时政+AI", "political": "时政", "industry": "AI"}
+    label = mode_label.get(mode, "时政+AI")
 
     logger.info("=" * 50)
-    logger.info("🚀 开始生成今日新闻日报")
+    logger.info(f"🚀 开始生成今日{label}日报")
     logger.info("=" * 50)
 
     # Step 1: 采集新闻
@@ -61,49 +65,87 @@ def run_daily():
             logger.error("无可用新闻数据，终止")
             return False
 
+    political_articles = news_data.get("political", [])
+    industry_articles = news_data.get("industry", [])
+
     # Step 2: AI总结
     logger.info("\n🤖 [Step 2/4] AI总结新闻...")
-    try:
-        news_summary = summarize_all(news_data)
-    except Exception as e:
-        logger.error(f"AI总结失败: {e}")
-        # 降级：原始标题列表
-        news_summary = {
-            "political": "\n".join(
-                f"- {a['title']}" for a in news_data.get("political", [])[:15]
-            ),
-            "industry": "\n".join(
-                f"- {a['title']}" for a in news_data.get("industry", [])[:15]
-            ),
-            "combined": False,
-        }
 
-    # Step 3: 价格走势图
-    logger.info("\n📊 [Step 3/4] 更新价格数据并生成图表...")
+    political_summary = ""
+    industry_summary = ""
+
+    if mode in ("all", "political"):
+        try:
+            from summarizer.summarizer import summarize_political
+            political_summary = summarize_political(political_articles)
+        except Exception as e:
+            logger.error(f"时政新闻AI总结失败: {e}")
+            political_summary = "\n".join(
+                f"- {a['title']}" for a in political_articles[:15]
+            )
+
+    if mode in ("all", "industry"):
+        try:
+            from summarizer.summarizer import summarize_industry
+            industry_summary = summarize_industry(industry_articles)
+        except Exception as e:
+            logger.error(f"行业新闻AI总结失败: {e}")
+            industry_summary = "\n".join(
+                f"- {a['title']}" for a in industry_articles[:15]
+            )
+
+    # Step 3: 价格走势图（仅AI日报需要）
     chart_path = None
     market_analysis = ""
-    try:
-        tracker = PriceTracker()
-        chart_file = REPORTS_DIR / f"price_chart_{Path(__file__).parent.name}.png"
-        chart_path = tracker.generate_chart(chart_file)
-        market_analysis = tracker.generate_market_analysis()
-    except Exception as e:
-        logger.warning(f"价格图表生成失败: {e}")
+    if mode in ("all", "industry"):
+        logger.info("\n📊 [Step 3/4] 更新价格数据并生成图表...")
+        try:
+            from price_tracker.price_tracker import PriceTracker
+            tracker = PriceTracker()
+            chart_file = REPORTS_DIR / f"price_chart_{Path(__file__).parent.name}.png"
+            chart_path = tracker.generate_chart(chart_file)
+            market_analysis = tracker.generate_market_analysis()
+        except Exception as e:
+            logger.warning(f"价格图表生成失败: {e}")
 
     # Step 4: 生成HTML日报
     logger.info("\n📝 [Step 4/4] 生成日报...")
-    try:
-        report_path = generate_report(
-            news_summary=news_summary,
-            chart_path=chart_path,
-            market_analysis=market_analysis,
-        )
-        logger.info(f"\n✅ 日报生成完成！")
-        logger.info(f"📄 文件: {report_path}")
-        logger.info(f"🔗 打开方式: 浏览器打开此文件即可查看")
+
+    from report.report_generator import generate_political_report, generate_industry_report
+
+    results = []
+
+    if mode in ("all", "political") and political_summary:
+        try:
+            path = generate_political_report(
+                summary_text=political_summary,
+                articles=political_articles,
+            )
+            logger.info(f"📰 时政日报: {path}")
+            results.append(path)
+        except Exception as e:
+            logger.error(f"时政日报生成失败: {e}")
+
+    if mode in ("all", "industry") and industry_summary:
+        try:
+            path = generate_industry_report(
+                summary_text=industry_summary,
+                articles=industry_articles,
+                chart_path=chart_path,
+                market_analysis=market_analysis,
+            )
+            logger.info(f"🤖 AI日报: {path}")
+            results.append(path)
+        except Exception as e:
+            logger.error(f"AI日报生成失败: {e}")
+
+    if results:
+        logger.info(f"\n✅ {label}日报生成完成！共生成 {len(results)} 份报告")
+        for p in results:
+            logger.info(f"   📄 {p}")
         return True
-    except Exception as e:
-        logger.error(f"日报生成失败: {e}")
+    else:
+        logger.error("日报生成失败：未生成任何报告")
         return False
 
 

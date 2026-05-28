@@ -57,55 +57,76 @@ def print_menu():
     print(f"  报告目录: {REPORTS_DIR}")
     print()
     print("  ═══════════════════════════════════")
-    print("  1) 🚀 立即生成今日日报")
-    print("  2) 📊 查看最新日报")
-    print("  3) 📈 查看价格走势图")
-    print("  4) 🔄 每日自动调度模式（保持窗口打开）")
-    print("  5) 🌐 启动HTTP报告服务器")
-    print("  6) 📋 打开报告目录")
-    print("  7) ❓ 使用说明")
+    print("  ║      🚀 生 成                     ║")
+    print("  ═══════════════════════════════════")
+    print("  1) 📰🤖 全部日报（时政+AI）")
+    print("  2) 📰   仅时政日报")
+    print("  3) 🤖   仅AI行业日报")
+    print("  ═══════════════════════════════════")
+    print("  ║      📂 查 看                     ║")
+    print("  ═══════════════════════════════════")
+    print("  4) 📊 查看最新日报")
+    print("  5) 📈 查看价格走势图")
+    print("  6) 🔄 每日自动调度模式（保持窗口打开）")
+    print("  7) 🌐 启动HTTP报告服务器")
+    print("  8) 📋 打开报告目录")
+    print("  9) ❓ 使用说明")
     print("  0) 退出")
     print("  ═══════════════════════════════════")
 
 
-def run_daily():
-    """立即运行日报生成"""
+def run_daily(mode="all"):
+    """立即运行日报生成
+
+    Args:
+        mode: "all" 时政+AI, "political" 仅时政, "industry" 仅AI
+    """
+    mode_names = {"all": "今日新闻日报", "political": "时政日报", "industry": "AI行业日报"}
+    name = mode_names.get(mode, "今日新闻日报")
     print("\n" + "=" * 50)
-    print("  🚀 开始生成今日新闻日报...")
+    print(f"  🚀 开始生成{name}...")
     print("=" * 50 + "\n")
 
     if IS_EXE:
-        # 从 exe 目录运行 main.py
-        main_py = BASE_DIR / "main.py"
-        if main_py.exists():
-            result = subprocess.run(
-                [sys.executable, str(main_py), "--init-data"],
-                cwd=str(PROJECT_DIR),
-            )
-            return result.returncode == 0
-        else:
-            print(f"[错误] 找不到 main.py: {main_py}")
+        sys.path.insert(0, str(BASE_DIR))
+        try:
+            from price_tracker.price_tracker import PriceTracker
+            tracker = PriceTracker()
+            tracker.init_sample_data()
+            import main
+            result = main.run_daily(mode=mode)
+            return result
+        except Exception as e:
+            print(f"[错误] 运行失败: {e}")
             return False
     else:
-        # 直接用 Python 运行
         from main import run_daily as _run
-        return _run()
+        return _run(mode=mode)
 
 
 def open_latest_report():
-    """打开最新的日报HTML"""
+    """打开最新的时政日报和AI日报"""
     if not REPORTS_DIR.exists():
         print("\n⚠️  暂无报告，请先生成")
         return
 
-    html_files = sorted(REPORTS_DIR.glob("daily_report_*.html"), reverse=True)
-    if not html_files:
-        print("\n⚠️  暂无报告，请先生成")
-        return
+    opened = False
+    # 打开最新的时政日报
+    political = sorted(REPORTS_DIR.glob("*时政日报.html"), reverse=True)
+    if political:
+        print(f"\n📰 打开: {political[0].name}")
+        webbrowser.open(str(political[0]))
+        opened = True
 
-    latest = html_files[0]
-    print(f"\n📄 打开: {latest.name}")
-    webbrowser.open(str(latest))
+    # 打开最新的AI日报
+    industry = sorted(REPORTS_DIR.glob("*AI日报.html"), reverse=True)
+    if industry:
+        print(f"🤖 打开: {industry[0].name}")
+        webbrowser.open(str(industry[0]))
+        opened = True
+
+    if not opened:
+        print("\n⚠️  暂无报告，请先生成")
 
 
 def open_price_chart():
@@ -181,9 +202,10 @@ def show_help():
     如未配置，总结功能将降级为标题列表模式。
 
     📡 新闻来源
-    时政: BBC中文, FT中文, Solidot, 央视新闻
-    行业: 爱范儿, TechCrunch, AI News, ArsTechnica,
-           Hacker News, 36氪, 虎嗅, 广电总局
+    时政: 新华社, 人民日报, 央视新闻联播, BBC中文, FT中文,
+          环球网, 中国新闻网, Solidot, Reuters
+    AI行业: TechCrunch, Variety, Hollywood Reporter, 爱范儿,
+            ArsTechnica, 36氪AI, 虎嗅AI, 广电总局, 1905电影网
 
     📊 价格追踪
     支持6个AIGC品类价格走势追踪：
@@ -194,6 +216,12 @@ def show_help():
       - AI广告制作 (万元/条)
       - 数字人定制 (万元/个)
     价格数据保存在 data/prices.json，可手动编辑。
+
+    📄 双报告模式
+    每次运行自动生成两份独立日报：
+      - 时政日报 — 海内外权威时政要闻，带可点击溯源链接
+      - AI日报 — AIGC影视传媒行业动态，含价格走势图表
+    文件名格式: "2026年5月28日时政日报.html"（每天新建，不覆盖）
 
     ⏰ 每日自动运行
     方式1: 选"4) 每日自动调度" — 保持窗口打开即可
@@ -213,11 +241,11 @@ def main():
     while True:
         print_banner()
         print_menu()
-        choice = input("\n  请输入选项 [0-7]: ").strip()
+        choice = input("\n  请输入选项 [0-9]: ").strip()
 
         if choice == "1":
             print("\n" + "-" * 50)
-            success = run_daily()
+            success = run_daily("all")
             print("-" * 50)
             if success:
                 print("\n  ✅ 日报生成完成！正在打开...")
@@ -226,29 +254,53 @@ def main():
             input()
 
         elif choice == "2":
-            open_latest_report()
+            print("\n" + "-" * 50)
+            success = run_daily("political")
+            print("-" * 50)
+            if success:
+                political = sorted(REPORTS_DIR.glob("*时政日报.html"), reverse=True)
+                if political:
+                    print(f"\n  ✅ 时政日报生成完成！正在打开...")
+                    webbrowser.open(str(political[0]))
             print("\n  按回车键返回菜单...", end="")
             input()
 
         elif choice == "3":
-            open_price_chart()
+            print("\n" + "-" * 50)
+            success = run_daily("industry")
+            print("-" * 50)
+            if success:
+                industry = sorted(REPORTS_DIR.glob("*AI日报.html"), reverse=True)
+                if industry:
+                    print(f"\n  ✅ AI日报生成完成！正在打开...")
+                    webbrowser.open(str(industry[0]))
             print("\n  按回车键返回菜单...", end="")
             input()
 
         elif choice == "4":
+            open_latest_report()
+            print("\n  按回车键返回菜单...", end="")
+            input()
+
+        elif choice == "5":
+            open_price_chart()
+            print("\n  按回车键返回菜单...", end="")
+            input()
+
+        elif choice == "6":
             start_schedule()
             print("\n  调度已停止。按回车键返回菜单...", end="")
             input()
 
-        elif choice == "5":
+        elif choice == "7":
             start_server()
 
-        elif choice == "6":
+        elif choice == "8":
             open_report_folder()
             print("\n  按回车键返回菜单...", end="")
             input()
 
-        elif choice == "7":
+        elif choice == "9":
             show_help()
             print("\n  按回车键返回菜单...", end="")
             input()
