@@ -1,0 +1,476 @@
+{
+  "categories": [
+    {
+      "id": "ai_video",
+      "name": "AI视频生成",
+      "unit": "元/秒",
+      "description": "AI生成视频的行业报价"
+    },
+    {
+      "id": "ai_image",
+      "name": "AI图片生成",
+      "unit": "元/张",
+      "description": "AI生成图片的行业报价"
+    },
+    {
+      "id": "ai_voice",
+      "name": "AI语音合成",
+      "unit": "元/千字",
+      "description": "AI配音/语音合成报价"
+    },
+    {
+      "id": "ai_short_drama",
+      "name": "AI短剧制作",
+      "unit": "万元/部",
+      "description": "AI短剧全案制作成本"
+    },
+    {
+      "id": "ai_ad",
+      "name": "AI广告制作",
+      "unit": "万元/条",
+      "description": "AI广告/宣传片制作报价"
+    },
+    {
+      "id": "digital_human",
+      "name": "数字人定制",
+      "unit": "万元/个",
+      "description": "数字人克隆/定制报价"
+    }
+  ],
+  "records": [
+    {
+      "id": 1,
+      "category_id": "ai_video",
+      "price": 8.82,
+      "note": "Pika 2.0",
+      "date": "2026-03-29",
+      "created_at": "2026-05-28T09:50:48.118595"
+    },
+    {
+      "id": 2,
+      "category_id": "ai_image",
+      "price": 0.25,
+      "note": "SDXL",
+      "date": "2026-03-29",
+      "created_at": "2026-05-28T09:50:48.118602"
+    },
+    {
+      "id": 3,
+      "category_id": "ai_voice",
+      "price": 22.18,
+      "note": "讯飞智作",
+      "date": "2026-03-29",
+      "created_at": "2026-05-28T09:50:48.118606"
+    },
+    {
+      "id": 4,
+      "category_id": "ai_short_drama",
+      "price": 15.72,
+      "note": "半AI+真人",
+      "date": "2026-03-29",
+      "created_at": "2026-05-28T09:50:48.118608"
+    },
+    {
+      "id": 5,
+      "category_id": "ai_ad",
+      "price": 0.8999999999999999,
+      "note": "AI产品展示",
+      "date": "2026-03-29",
+      "created_at": "2026-05-28T09:50:48.118611"
+    },
+    {
+      "id": 6,
+      "category_id": "digital_human",
+      "price": 0.6,
+      "note": "2D数字人",
+      "date": "2026-03-29",
+      "created_at": "2026-05-28T09:50:48.118613"
+    },
+    {
+      "id": 7,
+      "category_id": "ai_video",
+      "price": 1.5,
+      "note": "可灵AI报价",
+      "date": "2026-04-05",
+      "created_at": "2026-05-28T09:50:48.118620"
+    },
+    {
+      "id": 8,
+      "category_id": "ai_image",
+      "price": 1.01,
+      "note": "文心一格",
+      "date": "2026-04-05",
+      "created_at": "2026-05-28T09:50:48.118622"
+    },
+    {
+      "id": 9,
+      "category_id": "ai_voice",
+      "price": 17.17,
+      "note": "ElevenLabs",
+      "date": "2026-04-05",
+      "created_at": "2026-05-28T09:50:48.118624"
+    },
+    {
+      "id": 10,
+      "category_id": "ai_short_drama",
+      "price": 13.04,
+      "note": "全AI制作",
+      "date": "2026-04-05",
+      "created_at": "2026-05-28T09:50:48.118626"
+    },
+    {
+      "id": 11,
+      "category_id": "ai_ad",
+      "price": 4.76,
+      "note": "AI产品展示",
+      "date": "2026-04-05",
+      "created_at": "2026-05-28T09:50:48.118628"
+    },
+    {
+      "id": 12,
+      "category_id": "digital_human",
+      "price": 4.63,
+      "note": "3D数字人",
+      "date": "2026-04-05",
+      "created_at": "2026-05-28T09:50:48.118630"
+    },
+    {
+      "id": 13,
+      "category_id": "ai_video",
+      "price": 8.04,
+      "note": "Runway Gen-3",
+      "date": "2026-04-12",
+      "created_at": "2026-05-28T09:50:48.118635"
+    },
+    {
+      "id": 14,
+      "category_id": "ai_image",
+      "price": 1.27,
+      "note": "Midjourney V6",
+      "date": "2026-04-12",
+      "created_at": "2026-05-28T09:50:48.118636"
+    },
+    {
+      "id": 15,
+      "category_id": "ai_voice",
+      "price": 3.0,
+      "note": "讯飞智作",
+      "date": "2026-04-12",
+      "created_at": "2026-05-28T09:50:48.118638"
+    },
+    {
+      "id": 16,
+      "category_id": "ai_short_drama",
+      "price": 2.4,
+      "note": "全AI制作",
+      "date": "2026-04-12",
+      "created_at": "2026-05-28T09:50:48.118640"
+    },
+    {
+      "id": 17,
+      "category_id": "ai_ad",
+      "price": 4.4,
+      "note": "30秒AI广告",
+      "date": "2026-04-12",
+      "created_at": "2026-05-28T09:50:48.118642"
+    },
+    {
+      "id": 18,
+      "category_id": "digital_human",
+      "price": 3.57,
+      "note": "2D数字人",
+      "date": "2026-04-12",
+      "created_at": "2026-05-28T09:50:48.118644"
+    },
+    {
+      "id": 19,
+      "category_id": "ai_video",
+      "price": 1.5,
+      "note": "Runway Gen-3",
+      "date": "2026-04-19",
+      "created_at": "2026-05-28T09:50:48.118648"
+    },
+    {
+      "id": 20,
+      "category_id": "ai_image",
+      "price": 0.41,
+      "note": "文心一格",
+      "date": "2026-04-19",
+      "created_at": "2026-05-28T09:50:48.118650"
+    },
+    {
+      "id": 21,
+      "category_id": "ai_voice",
+      "price": 5.35,
+      "note": "火山引擎",
+      "date": "2026-04-19",
+      "created_at": "2026-05-28T09:50:48.118651"
+    },
+    {
+      "id": 22,
+      "category_id": "ai_short_drama",
+      "price": 15.2,
+      "note": "全AI制作",
+      "date": "2026-04-19",
+      "created_at": "2026-05-28T09:50:48.118653"
+    },
+    {
+      "id": 23,
+      "category_id": "ai_ad",
+      "price": 1.14,
+      "note": "30秒AI广告",
+      "date": "2026-04-19",
+      "created_at": "2026-05-28T09:50:48.118654"
+    },
+    {
+      "id": 24,
+      "category_id": "digital_human",
+      "price": 1.43,
+      "note": "AI分身定制",
+      "date": "2026-04-19",
+      "created_at": "2026-05-28T09:50:48.118656"
+    },
+    {
+      "id": 25,
+      "category_id": "ai_video",
+      "price": 7.81,
+      "note": "Pika 2.0",
+      "date": "2026-04-26",
+      "created_at": "2026-05-28T09:50:48.118660"
+    },
+    {
+      "id": 26,
+      "category_id": "ai_image",
+      "price": 0.26,
+      "note": "Midjourney V6",
+      "date": "2026-04-26",
+      "created_at": "2026-05-28T09:50:48.118662"
+    },
+    {
+      "id": 27,
+      "category_id": "ai_voice",
+      "price": 10.07,
+      "note": "讯飞智作",
+      "date": "2026-04-26",
+      "created_at": "2026-05-28T09:50:48.118663"
+    },
+    {
+      "id": 28,
+      "category_id": "ai_short_drama",
+      "price": 15.85,
+      "note": "半AI+真人",
+      "date": "2026-04-26",
+      "created_at": "2026-05-28T09:50:48.118665"
+    },
+    {
+      "id": 29,
+      "category_id": "ai_ad",
+      "price": 5.35,
+      "note": "AI宣传片(1分钟)",
+      "date": "2026-04-26",
+      "created_at": "2026-05-28T09:50:48.118667"
+    },
+    {
+      "id": 30,
+      "category_id": "digital_human",
+      "price": 0.94,
+      "note": "3D数字人",
+      "date": "2026-04-26",
+      "created_at": "2026-05-28T09:50:48.118668"
+    },
+    {
+      "id": 31,
+      "category_id": "ai_video",
+      "price": 3.73,
+      "note": "即梦Pro",
+      "date": "2026-05-03",
+      "created_at": "2026-05-28T09:50:48.118672"
+    },
+    {
+      "id": 32,
+      "category_id": "ai_image",
+      "price": 0.66,
+      "note": "文心一格",
+      "date": "2026-05-03",
+      "created_at": "2026-05-28T09:50:48.118674"
+    },
+    {
+      "id": 33,
+      "category_id": "ai_voice",
+      "price": 15.82,
+      "note": "火山引擎",
+      "date": "2026-05-03",
+      "created_at": "2026-05-28T09:50:48.118676"
+    },
+    {
+      "id": 34,
+      "category_id": "ai_short_drama",
+      "price": 7.57,
+      "note": "AI换脸短剧",
+      "date": "2026-05-03",
+      "created_at": "2026-05-28T09:50:48.118677"
+    },
+    {
+      "id": 35,
+      "category_id": "ai_ad",
+      "price": 5.32,
+      "note": "AI产品展示",
+      "date": "2026-05-03",
+      "created_at": "2026-05-28T09:50:48.118680"
+    },
+    {
+      "id": 36,
+      "category_id": "digital_human",
+      "price": 2.49,
+      "note": "2D数字人",
+      "date": "2026-05-03",
+      "created_at": "2026-05-28T09:50:48.118681"
+    },
+    {
+      "id": 37,
+      "category_id": "ai_video",
+      "price": 9.07,
+      "note": "Pika 2.0",
+      "date": "2026-05-10",
+      "created_at": "2026-05-28T09:50:48.118686"
+    },
+    {
+      "id": 38,
+      "category_id": "ai_image",
+      "price": 0.34,
+      "note": "DALL-E 3",
+      "date": "2026-05-10",
+      "created_at": "2026-05-28T09:50:48.118687"
+    },
+    {
+      "id": 39,
+      "category_id": "ai_voice",
+      "price": 7.29,
+      "note": "讯飞智作",
+      "date": "2026-05-10",
+      "created_at": "2026-05-28T09:50:48.118689"
+    },
+    {
+      "id": 40,
+      "category_id": "ai_short_drama",
+      "price": 13.32,
+      "note": "全AI制作",
+      "date": "2026-05-10",
+      "created_at": "2026-05-28T09:50:48.118690"
+    },
+    {
+      "id": 41,
+      "category_id": "ai_ad",
+      "price": 1.25,
+      "note": "AI产品展示",
+      "date": "2026-05-10",
+      "created_at": "2026-05-28T09:50:48.118692"
+    },
+    {
+      "id": 42,
+      "category_id": "digital_human",
+      "price": 2.97,
+      "note": "AI分身定制",
+      "date": "2026-05-10",
+      "created_at": "2026-05-28T09:50:48.118694"
+    },
+    {
+      "id": 43,
+      "category_id": "ai_video",
+      "price": 8.56,
+      "note": "Sora内测价",
+      "date": "2026-05-17",
+      "created_at": "2026-05-28T09:50:48.118697"
+    },
+    {
+      "id": 44,
+      "category_id": "ai_image",
+      "price": 0.96,
+      "note": "SDXL",
+      "date": "2026-05-17",
+      "created_at": "2026-05-28T09:50:48.118699"
+    },
+    {
+      "id": 45,
+      "category_id": "ai_voice",
+      "price": 3.0,
+      "note": "讯飞智作",
+      "date": "2026-05-17",
+      "created_at": "2026-05-28T09:50:48.118700"
+    },
+    {
+      "id": 46,
+      "category_id": "ai_short_drama",
+      "price": 3.06,
+      "note": "全AI制作",
+      "date": "2026-05-17",
+      "created_at": "2026-05-28T09:50:48.118702"
+    },
+    {
+      "id": 47,
+      "category_id": "ai_ad",
+      "price": 4.7,
+      "note": "AI产品展示",
+      "date": "2026-05-17",
+      "created_at": "2026-05-28T09:50:48.118704"
+    },
+    {
+      "id": 48,
+      "category_id": "digital_human",
+      "price": 0.6,
+      "note": "2D数字人",
+      "date": "2026-05-17",
+      "created_at": "2026-05-28T09:50:48.118705"
+    },
+    {
+      "id": 49,
+      "category_id": "ai_video",
+      "price": 9.58,
+      "note": "可灵AI报价",
+      "date": "2026-05-24",
+      "created_at": "2026-05-28T09:50:48.118709"
+    },
+    {
+      "id": 50,
+      "category_id": "ai_image",
+      "price": 1.05,
+      "note": "DALL-E 3",
+      "date": "2026-05-24",
+      "created_at": "2026-05-28T09:50:48.118710"
+    },
+    {
+      "id": 51,
+      "category_id": "ai_voice",
+      "price": 3.0,
+      "note": "火山引擎",
+      "date": "2026-05-24",
+      "created_at": "2026-05-28T09:50:48.118712"
+    },
+    {
+      "id": 52,
+      "category_id": "ai_short_drama",
+      "price": 13.22,
+      "note": "AI换脸短剧",
+      "date": "2026-05-24",
+      "created_at": "2026-05-28T09:50:48.118713"
+    },
+    {
+      "id": 53,
+      "category_id": "ai_ad",
+      "price": 0.8999999999999999,
+      "note": "30秒AI广告",
+      "date": "2026-05-24",
+      "created_at": "2026-05-28T09:50:48.118715"
+    },
+    {
+      "id": 54,
+      "category_id": "digital_human",
+      "price": 0.6,
+      "note": "3D数字人",
+      "date": "2026-05-24",
+      "created_at": "2026-05-28T09:50:48.118717"
+    }
+  ],
+  "created_at": "2026-05-28T09:50:48.118719",
+  "updated_at": "2026-05-28T09:50:48.118721"
+}
