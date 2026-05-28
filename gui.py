@@ -288,6 +288,16 @@ class NewsDailyGUI:
                  fg="#94a3b8", bg=self.COLORS["bg_dark"],
                  font=("Microsoft YaHei", 9)).pack(side=tk.LEFT, padx=16)
 
+        login_btn = tk.Button(
+            bar, text="登录管理",
+            command=self._open_login_manager,
+            bg=self.COLORS["gray"], fg="white",
+            activebackground="#475569", activeforeground="white",
+            relief=tk.FLAT, font=("Microsoft YaHei", 9),
+            padx=14, pady=2, cursor="hand2", borderwidth=0,
+        )
+        login_btn.pack(side=tk.RIGHT, padx=4)
+
         settings_btn = tk.Button(
             bar, text="设置",
             command=self._open_settings,
@@ -442,6 +452,126 @@ class NewsDailyGUI:
                   relief=tk.FLAT, padx=20,
                   cursor="hand2").pack(side=tk.RIGHT)
 
+    def _open_login_manager(self):
+        """打开登录管理器"""
+        # 定义需要登录的站点
+        login_sites = [
+            {"id": "douyin_creator", "name": "抖音创作者中心", "url": "https://creator.douyin.com/",
+             "login_url": "https://creator.douyin.com/login", "desc": "查看热门话题、创作指南"},
+            {"id": "oceanengine", "name": "巨量引擎", "url": "https://www.oceanengine.com/",
+             "login_url": "https://www.oceanengine.com/login", "desc": "广告投放趋势、平台政策"},
+        ]
+
+        dialog = tk.Toplevel(self.root)
+        dialog.title("登录管理器")
+        dialog.geometry("520x320")
+        dialog.resizable(False, False)
+        dialog.configure(bg=self.COLORS["bg_card"])
+        dialog.transient(self.root)
+        dialog.grab_set()
+
+        tk.Label(dialog, text="登录会话管理",
+                 font=("Microsoft YaHei", 13, "bold"),
+                 fg=self.COLORS["text_dark"],
+                 bg=self.COLORS["bg_card"]).pack(pady=(12, 4))
+
+        tk.Label(dialog, text="登录后自动保存Cookie，下次采集无需重复登录",
+                 font=("Microsoft YaHei", 9),
+                 fg=self.COLORS["gray"],
+                 bg=self.COLORS["bg_card"]).pack()
+
+        frame = tk.Frame(dialog, bg=self.COLORS["bg_card"], padx=20, pady=8)
+        frame.pack(fill="both", expand=True)
+
+        # 从数据库读取登录状态
+        session_status = {}
+        try:
+            from system.database import get_all_sessions
+            for s in get_all_sessions():
+                session_status[s["site_id"]] = s
+        except Exception:
+            pass
+
+        for site in login_sites:
+            sid = site["id"]
+            logged_in = session_status.get(sid, {}).get("is_active", False)
+            card = tk.Frame(frame, bg=self.COLORS["bg_light"], padx=12, pady=8, relief="flat", bd=0)
+            card.pack(fill="x", pady=4)
+
+            row1 = tk.Frame(card, bg=self.COLORS["bg_light"])
+            row1.pack(fill="x")
+            tk.Label(row1, text=site["name"], font=("Microsoft YaHei", 11, "bold"),
+                     fg=self.COLORS["text_dark"], bg=self.COLORS["bg_light"]).pack(side="left")
+            status_text = "已登录" if logged_in else "未登录"
+            status_color = "#27ae60" if logged_in else "#e74c3c"
+            tk.Label(row1, text=status_text, font=("Microsoft YaHei", 9),
+                     fg=status_color, bg=self.COLORS["bg_light"]).pack(side="right")
+
+            tk.Label(card, text=site["desc"], font=("Microsoft YaHei", 9),
+                     fg=self.COLORS["gray"], bg=self.COLORS["bg_light"]).pack(anchor="w")
+
+            def make_login_cmd(site_id, site_name, login_url):
+                def cmd():
+                    self._do_login(dialog, site_id, site_name, login_url)
+                return cmd
+
+            btn_text = "重新登录" if logged_in else "去登录"
+            tk.Button(card, text=btn_text,
+                      command=make_login_cmd(sid, site["name"], site["login_url"]),
+                      bg="#667eea", fg="white", font=("Microsoft YaHei", 9),
+                      padx=12, relief="flat", cursor="hand2").pack(anchor="w", pady=(4, 0))
+
+        tk.Button(dialog, text="关闭", command=dialog.destroy,
+                  font=("Microsoft YaHei", 10), relief="flat", padx=20).pack(pady=(4, 10))
+
+    def _do_login(self, parent_dialog, site_id, site_name, login_url):
+        """执行登录，自动保存Cookie"""
+        self._log(f"正在打开浏览器登录 {site_name}...")
+        parent_dialog.destroy()
+
+        try:
+            from playwright.sync_api import sync_playwright
+            import json
+
+            with sync_playwright() as p:
+                browser = p.chromium.launch_persistent_context(
+                    user_data_dir=str(DATA_DIR / "sessions" / site_id),
+                    headless=False, viewport={"width": 1280, "height": 800}, locale="zh-CN",
+                )
+                page = browser.new_page()
+                page.goto(login_url, wait_until="domcontentloaded")
+
+                self._log(f"请在浏览器中登录 {site_name}，登录后关闭浏览器窗口即可")
+
+                # 等待用户关闭浏览器
+                import time
+                while True:
+                    try:
+                        if len(browser.pages) == 0:
+                            break
+                        current = browser.pages[0].url if browser.pages else ""
+                        if "login" not in current.lower() and current != "about:blank":
+                            self._log("检测到登录成功！正在保存Cookie...")
+                            break
+                    except Exception:
+                        break
+                    time.sleep(1)
+
+                cookies = browser.cookies()
+                browser.close()
+
+                # 保存到数据库
+                from system.database import save_login_session
+                save_login_session(site_id, site_name, cookies)
+                self._log(f"{site_name} 登录成功，已保存 {len(cookies)} 条Cookie")
+                # 同时保存到文件（兼容旧版）
+                cookie_file = DATA_DIR / "sessions" / f"{site_id}_cookies.json"
+                cookie_file.parent.mkdir(parents=True, exist_ok=True)
+                cookie_file.write_text(json.dumps(cookies, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        except ImportError:
+            self._log("错误：Playwright 未安装，请执行: pip install playwright && python -m playwright install chromium")
+
     # ==================== 操作 ====================
 
     def _run(self, mode):
@@ -525,7 +655,30 @@ class NewsDailyGUI:
         return f"#{r:02x}{g:02x}{b:02x}"
 
 
-if __name__ == "__main__":
+def launch_app():
+    """启动入口：先登录，后进入主界面"""
+    # 确保数据库初始化
+    try:
+        from system.database import init_db
+        init_db()
+    except Exception as e:
+        print(f"数据库初始化失败: {e}")
+
+    # 显示登录窗口
+    from system.login_dialog import LoginDialog
+    login = LoginDialog()
+    user = login.run()
+    if not user:
+        # 用户关闭登录窗口
+        return
+
+    # 登录成功，启动主界面
     root = tk.Tk()
-    NewsDailyGUI(root)
+    app = NewsDailyGUI(root)
+    # 在标题栏显示用户名
+    root.title(f"AI新闻日报系统 - {user.get('username', '')}")
     root.mainloop()
+
+
+if __name__ == "__main__":
+    launch_app()

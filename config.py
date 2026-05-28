@@ -183,14 +183,61 @@ AIGC_NEWS_SOURCES = [
     },
 ]
 
-# 网页抓取源（补充AI行业信息）
+# 网页抓取源（补充AI行业 + 政策监管信息）
 WEB_SCRAPE_SOURCES = [
+    # --- 政策监管（来自要求.txt） ---
     {
         "name": "国家广电总局",
         "type": "web",
         "url": "https://www.nrta.gov.cn/",
         "category": "industry_policy",
     },
+    {
+        "name": "广电总局网络视听节目管理司",
+        "type": "web",
+        "url": "https://www.nrta.gov.cn/col/col2253/index.html",
+        "category": "industry_policy",
+    },
+    {
+        "name": "中国网络视听节目服务协会",
+        "type": "web",
+        "url": "http://www.cnsa.cn/",
+        "category": "industry_policy",
+    },
+    {
+        "name": "国家电影局",
+        "type": "web",
+        "url": "https://www.chinafilm.gov.cn/",
+        "category": "industry_policy",
+    },
+    {
+        "name": "国务院政策文件库",
+        "type": "web",
+        "url": "https://www.gov.cn/zhengce/",
+        "category": "industry_policy",
+    },
+    # --- 平台/创作者（部分需要登录） ---
+    {
+        "name": "巨量引擎",
+        "type": "web",
+        "url": "https://www.oceanengine.com/news",
+        "category": "industry",
+        "need_login": True,
+    },
+    {
+        "name": "抖音电商学习中心",
+        "type": "web",
+        "url": "https://school.jinritemai.com/",
+        "category": "industry",
+    },
+    {
+        "name": "抖音创作者中心",
+        "type": "web",
+        "url": "https://creator.douyin.com/",
+        "category": "industry",
+        "need_login": True,
+    },
+    # --- 行业媒体 ---
     {
         "name": "36氪AI",
         "type": "web",

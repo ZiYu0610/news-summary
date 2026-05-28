@@ -264,4 +264,6 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # 登录后启动GUI主界面
+    from gui import launch_app
+    launch_app()

@@ -240,8 +240,41 @@ def collect_hangzhou_policy(days: int = 30) -> List[Dict]:
     return deduplicate(all_articles)
 
 
+def _parse_html_to_articles(html: str, source_name: str) -> List[Dict]:
+    """将HTML页面解析为文章列表"""
+    articles = []
+    try:
+        soup = BeautifulSoup(html, "lxml")
+        seen_links = set()
+        for a_tag in soup.find_all("a", href=True):
+            title = a_tag.get_text(strip=True)
+            href = a_tag["href"]
+            if len(title) < 10:
+                continue
+            if href.startswith("#") or href.startswith("javascript:"):
+                continue
+            if href.startswith("/"):
+                from urllib.parse import urljoin
+                base = {"name": source_name, "url": ""}
+                href = urljoin(f"https://{source_name}.com", href)
+            if href in seen_links:
+                continue
+            seen_links.add(href)
+            articles.append({
+                "title": title[:100],
+                "link": href,
+                "summary": title,
+                "published": None,
+                "source": source_name,
+                "collected_at": datetime.now().isoformat(),
+            })
+    except Exception:
+        pass
+    return articles[:30]
+
+
 def collect_industry_news(days: int = 2) -> List[Dict]:
-    """采集AIGC行业新闻（RSS + 网页抓取 + 关键词过滤）"""
+    """采集AIGC行业新闻（RSS + 网页抓取 + 关键词过滤，支持登录态）"""
     all_articles = []
     # 1. 从RSS源采集
     for source in AIGC_NEWS_SOURCES:
@@ -250,6 +283,30 @@ def collect_industry_news(days: int = 2) -> List[Dict]:
 
     # 2. 从补充网页源采集（含行业和政策源）
     for source in WEB_SCRAPE_SOURCES:
+        if source.get("need_login"):
+            # 登录态采集：从数据库获取cookie
+            try:
+                from system.database import get_login_session
+                session = get_login_session(source["name"])
+                if session and session.get("cookies") and len(session["cookies"]) > 0:
+                    import requests as _req
+                    cookies = {c.get("name", ""): c.get("value", "") for c in session["cookies"] if "name" in c}
+                    try:
+                        resp = _req.get(source["url"], cookies=cookies, timeout=15,
+                            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"})
+                        resp.encoding = "utf-8"
+                        art_list = _parse_html_to_articles(resp.text, source["name"])
+                        all_articles.extend(art_list)
+                        logger.info(f"使用登录态从 {source['name']} 采集到 {len(art_list)} 条")
+                        continue
+                    except Exception as e:
+                        logger.warning(f"登录态采集 {source['name']} 失败: {e}")
+                else:
+                    logger.info(f"{source['name']} 需要登录，请在GUI中先登录")
+                continue
+            except ImportError:
+                logger.warning(f"database模块不可用，跳过需要登录的 {source['name']}")
+                continue
         articles = fetch_web(source["url"], source["name"])
         all_articles.extend(articles)
 
@@ -270,7 +327,7 @@ def collect_industry_news(days: int = 2) -> List[Dict]:
 
 
 def collect_all(days: int = 2) -> Dict[str, List[Dict]]:
-    """采集所有新闻"""
+    """采集所有新闻（自动保存到数据库）"""
     logger.info("=" * 40)
     logger.info("开始采集新闻...")
 
@@ -282,6 +339,15 @@ def collect_all(days: int = 2) -> Dict[str, List[Dict]]:
 
     hangzhou_policy = collect_hangzhou_policy(days=30)
     logger.info(f"杭州创业政策: 采集到 {len(hangzhou_policy)} 条")
+
+    # 保存到数据库
+    try:
+        from system.database import save_articles
+        save_articles(political, "political")
+        save_articles(industry, "industry")
+        save_articles(hangzhou_policy, "policy")
+    except Exception as e:
+        logger.warning(f"保存到数据库失败: {e}")
 
     return {
         "political": political,

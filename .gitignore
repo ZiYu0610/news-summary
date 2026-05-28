@@ -8,3 +8,8 @@ dist/
 build/
 *.bak
 data/settings.json
+data/*.db
+data/.auto_login
+data/news/
+data/reports/
+data/sessions/

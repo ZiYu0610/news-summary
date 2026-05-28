@@ -19,28 +19,85 @@ def _chinese_date() -> str:
 def _inject_source_links(html_text: str, articles: List[Dict]) -> str:
     """将正文中的 [来源：XXX] 或 [来源：XXX #N] 替换为可点击的超链接
 
-    优先使用 [#N] 编号精确定位（最准确），降级使用顺序匹配。
+    匹配优先级：
+    1. [#N] 编号精确定位
+    2. 段落文本匹配标题关键词
+    3. 来源名 + 数据库映射
+    4. 来源名顺序匹配
     """
     import re
 
-    def replace_func(match):
-        source_name = match.group(1)
-        raw_num = match.group(2)  # 可能为 None
+    # 建立标题索引（用于模糊匹配）
+    title_index = {}
+    for i, art in enumerate(articles):
+        t = art.get("title", "").strip()[:30].lower()
+        if t:
+            # 提取标题中的关键信息词
+            import re as _re
+            words = _re.findall(r'[\w一-鿿]{2,}', t)
+            for w in words:
+                if w not in title_index:
+                    title_index[w] = []
+                title_index[w].append((i, art))
 
-        if raw_num:
-            # 编号模式 [来源：XXX #N] — 直接精确定位
-            idx = int(raw_num) - 1  # 转为 0-indexed
-            if 0 <= idx < len(articles) and articles[idx].get("link"):
-                return f'<a href="{articles[idx]["link"]}" target="_blank" rel="noopener" class="source-link">{source_name}</a>'
-            elif 0 <= idx < len(articles):
-                return f'<span class="source-tag">{source_name}</span>'
+    def _find_by_source_name(source_name: str, line_text: str = "") -> str:
+        """查找来源链接，多种策略"""
+        # 策略1: 段落中找标题关键词匹配
+        if line_text:
+            line_lower = line_text.lower()
+            # 找段落中所有出现的文章标题词
+            candidates = set()
+            for i, art in enumerate(articles):
+                t = art.get("title", "").strip().lower()[:30]
+                # 检查段落是否包含标题中的关键词
+                t_words = set(re.findall(r'[\w一-鿿]{2,}', t))
+                match_count = sum(1 for w in t_words if w in line_lower and len(w) >= 2)
+                if match_count >= 2 and art.get("link"):  # 至少匹配2个词
+                    candidates.add((match_count, i, art))
 
-        # 降级：按来源名在 articles 中顺序匹配
+            if candidates:
+                best = max(candidates, key=lambda x: x[0])
+                return f'<a href="{best[2]["link"]}" target="_blank" rel="noopener" class="source-link">{source_name}</a>'
+
+        # 策略2: 数据库来源映射
+        try:
+            from system.database import get_source_url
+            db_url = get_source_url(source_name)
+            if db_url:
+                return f'<a href="{db_url}" target="_blank" rel="noopener" class="source-link">{source_name}</a>'
+        except Exception:
+            pass
+
+        # 策略3: 按来源名顺序匹配第一个有链接的
         for art in articles:
             if art.get("source") == source_name and art.get("link"):
                 return f'<a href="{art["link"]}" target="_blank" rel="noopener" class="source-link">{source_name}</a>'
 
         return f'<span class="source-tag">{source_name}</span>'
+
+    def replace_func(match):
+        source_name = match.group(1).strip()
+        raw_num = match.group(2)  # 可能为 None
+
+        if raw_num:
+            # 编号模式 [来源：XXX #N] — 直接精确定位
+            idx = int(raw_num) - 1
+            if 0 <= idx < len(articles):
+                link = articles[idx].get("link", "")
+                if link:
+                    return f'<a href="{link}" target="_blank" rel="noopener" class="source-link">{source_name}</a>'
+                return f'<span class="source-tag">{source_name}</span>'
+            # 编号越界，走降级
+            return _find_by_source_name(source_name)
+
+        # 无编号模式：提取段落上下文辅助匹配
+        full_text = match.string
+        line_start = full_text.rfind("\n", 0, match.start()) + 1
+        line_end = full_text.find("\n", match.end())
+        if line_end == -1:
+            line_end = len(full_text)
+        line_text = full_text[line_start:line_end]
+        return _find_by_source_name(source_name, line_text)
 
     # 先匹配带编号的 [来源：XXX #N]，再匹配不带编号的 [来源：XXX]
     result = re.sub(r'\[来源：(.+?)\s+#(\d+)\]', replace_func, html_text)
