@@ -265,9 +265,12 @@ def _parse_html_to_articles(html: str, source_name: str) -> List[Dict]:
 def collect_industry_news(days: int = 2) -> List[Dict]:
     """采集AIGC行业新闻（RSS + 网页抓取 + 关键词过滤，支持登录态）"""
     all_articles = []
-    # 1. 从RSS源采集
+    # 1. 从AIGC新闻源采集（支持RSS和网页类型）
     for source in AIGC_NEWS_SOURCES:
-        articles = fetch_rss(source["url"], source["name"], days)
+        if source.get("type") == "web":
+            articles = fetch_web(source["url"], source["name"])
+        else:
+            articles = fetch_rss(source["url"], source["name"], days)
         all_articles.extend(articles)
 
     # 2. 从补充网页源采集（含行业和政策源）
@@ -276,7 +279,8 @@ def collect_industry_news(days: int = 2) -> List[Dict]:
             # 登录态采集：从数据库获取cookie
             try:
                 from system.database import get_login_session
-                session = get_login_session(source["name"])
+                sid = source.get("site_id", source["name"])
+                session = get_login_session(sid)
                 if session and session.get("cookies") and len(session["cookies"]) > 0:
                     import requests as _req
                     cookies = {c.get("name", ""): c.get("value", "") for c in session["cookies"] if "name" in c}

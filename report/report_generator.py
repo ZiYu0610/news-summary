@@ -77,7 +77,10 @@ def _inject_source_links(html_text: str, articles: List[Dict]) -> str:
 
     def replace_func(match):
         source_name = match.group(1).strip()
-        raw_num = match.group(2)  # 可能为 None
+        try:
+            raw_num = match.group(2)
+        except IndexError:
+            raw_num = None
 
         if raw_num:
             # 编号模式 [来源：XXX #N] — 直接精确定位

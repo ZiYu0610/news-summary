@@ -60,6 +60,7 @@ class NewsDailyGUI:
     COLORS = {
         "bg_dark": "#1a1a2e",
         "bg_card": "#ffffff",
+        "bg_light": "#f1f5f9",
         "primary": "#3b82f6",
         "success": "#10b981",
         "purple": "#8b5cf6",
@@ -74,8 +75,8 @@ class NewsDailyGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("AI 新闻日报系统")
-        self.root.geometry("880x680")
-        self.root.minsize(720, 560)
+        self.root.geometry("960x720")
+        self.root.minsize(800, 600)
         self.root.configure(bg=self.COLORS["bg_dark"])
 
         self._check_api()
@@ -98,7 +99,7 @@ class NewsDailyGUI:
     def _verify_api_connection(self):
         """启动后异步验证API连接"""
         if not self.api_key:
-            self.root.after(0, lambda: self._log("API 未配置，请点击底部\"设置\"按钮进行配置"))
+            self.root.after(0, lambda: self._log("API 未配置，请点击底部\"API 配置\"按钮进行配置"))
             return
 
         settings_path = DATA_DIR / "settings.json"
@@ -193,29 +194,45 @@ class NewsDailyGUI:
             font=("Microsoft YaHei", 9),
         ).pack()
 
-        # -- 主体 --
-        main = tk.Frame(self.root, bg=self.COLORS["bg_dark"])
+        # -- 主体（可拖拽分割面板） --
+        main = tk.PanedWindow(self.root, bg=self.COLORS["bg_dark"],
+                              sashrelief=tk.RAISED, sashwidth=6, sashpad=0)
         main.pack(fill=tk.BOTH, expand=True, padx=16, pady=(8, 16))
-        main.grid_columnconfigure(1, weight=1)
-        main.grid_rowconfigure(0, weight=1)
 
-        # 左侧面板
-        left = tk.Frame(main, bg=self.COLORS["bg_card"], width=260, relief=tk.FLAT, bd=0)
-        left.grid(row=0, column=0, sticky="ns", padx=(0, 12))
-        left.pack_propagate(False)
+        # 左侧面板（可滚动）
+        left_container = tk.Frame(main, bg=self.COLORS["bg_card"])
+        left_canvas = tk.Canvas(left_container, bg=self.COLORS["bg_card"],
+                                highlightthickness=0, width=260)
+        left_scroll = tk.Scrollbar(left_container, orient=tk.VERTICAL, command=left_canvas.yview)
+        left_scrollable = tk.Frame(left_canvas, bg=self.COLORS["bg_card"])
 
-        self._build_left_panel(left)
+        left_scrollable.bind("<Configure>", lambda e: left_canvas.configure(scrollregion=left_canvas.bbox("all")))
+        left_canvas.create_window((0, 0), window=left_scrollable, anchor="nw", tags="inner")
+        left_canvas.configure(yscrollcommand=left_scroll.set)
+
+        # 鼠标滚轮控制左侧面板滚动
+        def _on_left_scroll(event):
+            left_canvas.yview_scroll(-1 * (event.delta // 120), "units")
+        left_canvas.bind("<MouseWheel>", _on_left_scroll)
+        left_scrollable.bind("<MouseWheel>", _on_left_scroll)
+
+        left_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        left_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self._build_left_panel(left_scrollable)
+
+        main.add(left_container, width=260, minsize=180)
 
         # 右侧日志面板
         right = tk.Frame(main, bg=self.COLORS["bg_card"])
-        right.grid(row=0, column=1, sticky="nsew")
         self._build_right_panel(right)
+        main.add(right, minsize=400)
 
         # -- 底部状态栏 --
         self._build_statusbar()
 
     def _build_left_panel(self, parent):
-        pad = {"padx": 14, "pady": (14, 4)}
+        pad = {"padx": 14, "pady": (14, 0)}
 
         # 生成日报
         tk.Label(parent, text="生 成 日 报", font=("Microsoft YaHei", 11, "bold"),
@@ -227,7 +244,7 @@ class NewsDailyGUI:
             self._btn(parent, *btn)
 
         # 分隔线
-        tk.Frame(parent, bg=self.COLORS["border"], height=1).pack(fill=tk.X, padx=14, pady=10)
+        tk.Frame(parent, bg=self.COLORS["border"], height=1).pack(fill=tk.X, padx=16, pady=10)
 
         # 查看
         tk.Label(parent, text="查 看", font=("Microsoft YaHei", 11, "bold"),
@@ -240,13 +257,13 @@ class NewsDailyGUI:
             self._btn(parent, *btn)
 
         # 外部站点登录
-        tk.Frame(parent, bg=self.COLORS["border"], height=1).pack(fill=tk.X, padx=14, pady=10)
+        tk.Frame(parent, bg=self.COLORS["border"], height=1).pack(fill=tk.X, padx=16, pady=10)
         tk.Label(parent, text="站 点 登 录", font=("Microsoft YaHei", 11, "bold"),
                  fg=self.COLORS["text_dark"], bg=self.COLORS["bg_card"]).pack(**pad)
         for btn in [
-            ("抖音创作者中心", "#e74c3c", lambda: self._quick_login("douyin_creator", "抖音创作者中心", "https://creator.douyin.com/login")),
-            ("巨量引擎", "#e67e22", lambda: self._quick_login("oceanengine", "巨量引擎", "https://www.oceanengine.com/login")),
-            ("抖音电商学习中心", "#3498db", lambda: self._quick_login("douyin_school", "抖音电商学习中心", "https://school.jinritemai.com/login")),
+            ("抖音创作者中心", "#e74c3c", lambda: self._quick_login("douyin_creator", "抖音创作者中心", "https://creator.douyin.com/")),
+            ("巨量引擎", "#e67e22", lambda: self._quick_login("oceanengine", "巨量引擎", "https://ad.oceanengine.com/")),
+            ("抖音电商学习中心", "#3498db", lambda: self._quick_login("douyin_school", "抖音电商学习中心", "https://school.jinritemai.com/")),
         ]:
             self._btn(parent, *btn)
 
@@ -255,10 +272,10 @@ class NewsDailyGUI:
             parent, text=text, command=command,
             bg=color, fg="white", activebackground=self._lighten(color),
             activeforeground="white", relief=tk.FLAT,
-            font=("Microsoft YaHei", 10), padx=12, pady=7,
+            font=("Microsoft YaHei", 10), padx=16, pady=8,
             cursor="hand2", borderwidth=0,
         )
-        btn.pack(fill=tk.X, padx=14, pady=3)
+        btn.pack(anchor="center", pady=4, ipadx=24)
         btn.bind("<Enter>", lambda e, b=btn, c=color: b.configure(bg=self._lighten(c)))
         btn.bind("<Leave>", lambda e, b=btn, c=color: b.configure(bg=c))
         return btn
@@ -289,6 +306,15 @@ class NewsDailyGUI:
         )
         self.log_text.pack(fill=tk.BOTH, expand=True, padx=16, pady=(4, 16))
 
+        # 鼠标滚轮滚动（DISABLED状态下也生效）
+        def _on_log_wheel(event):
+            self.log_text.yview_scroll(-1 * (event.delta // 120), "units")
+            return "break"
+        self.log_text.bind("<MouseWheel>", _on_log_wheel)
+        # 触控板支持（Linux/Windows通用）
+        self.log_text.bind("<Button-4>", lambda e: self.log_text.yview_scroll(-3, "units"))
+        self.log_text.bind("<Button-5>", lambda e: self.log_text.yview_scroll(3, "units"))
+
     def _build_statusbar(self):
         bar = tk.Frame(self.root, bg=self.COLORS["bg_dark"], height=36)
         bar.pack(fill=tk.X, side=tk.BOTTOM)
@@ -310,7 +336,7 @@ class NewsDailyGUI:
         login_btn.pack(side=tk.RIGHT, padx=4)
 
         settings_btn = tk.Button(
-            bar, text="设置",
+            bar, text="API 配置",
             command=self._open_settings,
             bg=self.COLORS["gray"], fg="white",
             activebackground="#475569", activeforeground="white",
@@ -349,13 +375,13 @@ class NewsDailyGUI:
         self.log_text.delete(1.0, tk.END)
         self.log_text.configure(state=tk.DISABLED)
 
-    # ==================== 设置对话框 ====================
+    # ==================== API 配置对话框 ====================
 
     def _open_settings(self):
-        """打开API设置对话框"""
+        """打开 API 配置对话框（含模型自动检测）"""
         dialog = tk.Toplevel(self.root)
-        dialog.title("API 设置")
-        dialog.geometry("520x350")
+        dialog.title("API 配置")
+        dialog.geometry("560x420")
         dialog.resizable(False, False)
         dialog.configure(bg=self.COLORS["bg_card"])
         dialog.transient(self.root)
@@ -377,46 +403,133 @@ class NewsDailyGUI:
                  fg=self.COLORS["text_dark"],
                  bg=self.COLORS["bg_card"]).pack(**pad)
 
-        tk.Label(dialog, text="支持 Anthropic 协议兼容的 API（如 DeepSeek、Claude 等）",
+        tk.Label(dialog, text="支持 OpenAI 兼容协议及 Anthropic 协议的 API",
                  font=("Microsoft YaHei", 9),
                  fg=self.COLORS["gray"],
                  bg=self.COLORS["bg_card"]).pack(padx=20, pady=(0, 8))
 
-        fields = [
-            ("api_key", "API 密钥 *", "输入您的 API Key", True),
-            ("base_url", "API 地址", "https://api.deepseek.com", False),
-            ("model", "模型名称", "deepseek-chat", False),
-        ]
+        # 表单容器
+        form = tk.Frame(dialog, bg=self.COLORS["bg_card"])
+        form.pack(fill=tk.X, padx=20)
 
-        entries = {}
-        for key, label, placeholder, required in fields:
-            frame = tk.Frame(dialog, bg=self.COLORS["bg_card"])
-            frame.pack(fill=tk.X, padx=20, pady=4)
+        # API 密钥
+        tk.Label(form, text="API 密钥", anchor="w",
+                 font=("Microsoft YaHei", 10), fg=self.COLORS["text_dark"],
+                 bg=self.COLORS["bg_card"]).pack(fill=tk.X, pady=(8, 2))
+        api_key_entry = tk.Entry(form, font=("Consolas", 10),
+                                 relief=tk.SOLID, borderwidth=1, show="*")
+        api_key_entry.pack(fill=tk.X, ipady=4)
+        api_key_entry.insert(0, current.get("api_key", ""))
 
-            tk.Label(frame, text=label, width=12, anchor="e",
-                     font=("Microsoft YaHei", 10),
-                     fg=self.COLORS["text_dark"],
-                     bg=self.COLORS["bg_card"]).pack(side=tk.LEFT, padx=(0, 8))
+        # API 地址 + 检测按钮
+        tk.Label(form, text="API 地址", anchor="w",
+                 font=("Microsoft YaHei", 10), fg=self.COLORS["text_dark"],
+                 bg=self.COLORS["bg_card"]).pack(fill=tk.X, pady=(8, 2))
+        url_frame = tk.Frame(form, bg=self.COLORS["bg_card"])
+        url_frame.pack(fill=tk.X)
+        base_url_entry = tk.Entry(url_frame, font=("Consolas", 10),
+                                  relief=tk.SOLID, borderwidth=1)
+        base_url_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=4)
+        base_url_entry.insert(0, current.get("base_url", ""))
 
-            show_char = "*" if key == "api_key" else ""
-            entry = tk.Entry(frame, font=("Consolas", 10),
-                             relief=tk.SOLID, borderwidth=1,
-                             show=show_char)
-            entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        detect_btn = tk.Button(url_frame, text="检测模型",
+                               font=("Microsoft YaHei", 9, "bold"),
+                               bg=self.COLORS["primary"], fg="white",
+                               relief=tk.FLAT, padx=14, cursor="hand2")
+        detect_btn.pack(side=tk.RIGHT, padx=(6, 0))
 
-            # 填入保存的值
-            entry.insert(0, current.get(key, ""))
-            if not current.get(key) and placeholder and key == "model":
-                entry.insert(0, "deepseek-chat")
+        # 模型名称（下拉选择 + 可手动输入）
+        tk.Label(form, text="模型名称", anchor="w",
+                 font=("Microsoft YaHei", 10), fg=self.COLORS["text_dark"],
+                 bg=self.COLORS["bg_card"]).pack(fill=tk.X, pady=(8, 2))
+        model_combo = ttk.Combobox(form, font=("Consolas", 10),
+                                   state="normal")  # 可手动输入
+        model_combo.pack(fill=tk.X, ipady=4)
+        default_model = current.get("model", "deepseek-chat")
+        model_combo.set(default_model)
+        model_combo["values"] = [default_model]
 
-            entries[key] = entry
+        # 检测状态标签
+        detect_status = tk.Label(form, text="", font=("Microsoft YaHei", 9),
+                                 fg=self.COLORS["gray"], bg=self.COLORS["bg_card"])
+        detect_status.pack(fill=tk.X, pady=(4, 0))
+
+        # 检测模型回调
+        def on_detect():
+            base_url = base_url_entry.get().strip()
+            api_key = api_key_entry.get().strip()
+            if not base_url:
+                detect_status.configure(text="请先填写 API 地址", fg=self.COLORS["red"])
+                return
+            if not api_key:
+                detect_status.configure(text="请先填写 API 密钥", fg=self.COLORS["red"])
+                return
+
+            detect_btn.configure(state=tk.DISABLED, text="检测中...")
+            detect_status.configure(text="正在连接 API 获取模型列表...", fg=self.COLORS["gray"])
+            dialog.update()
+
+            import httpx
+            try:
+                url = base_url.rstrip("/") + "/models"
+                resp = httpx.get(url, headers={"Authorization": f"Bearer {api_key}"},
+                                 timeout=15)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    models = [m["id"] for m in data.get("data", []) if "id" in m]
+                    if models:
+                        model_combo["values"] = models
+                        model_combo.set(models[0])
+                        detect_status.configure(
+                            text=f"检测到 {len(models)} 个模型，已选择第一个",
+                            fg="#27ae60")
+                    else:
+                        detect_status.configure(text="API 响应正常但未获取到模型列表",
+                                                fg=self.COLORS["orange"])
+                elif resp.status_code == 401:
+                    detect_status.configure(text="密钥无效（401），请检查 API Key",
+                                            fg=self.COLORS["red"])
+                elif resp.status_code == 404:
+                    # 可能是 Anthropic 协议，尝试不同路径
+                    try:
+                        resp2 = httpx.get(base_url.rstrip("/") + "/v1/models",
+                                          headers={"Authorization": f"Bearer {api_key}"},
+                                          timeout=15)
+                        if resp2.status_code == 200:
+                            data2 = resp2.json()
+                            models2 = [m["id"] for m in data2.get("data", []) if "id" in m]
+                            if models2:
+                                model_combo["values"] = models2
+                                model_combo.set(models2[0])
+                                detect_status.configure(
+                                    text=f"检测到 {len(models2)} 个模型",
+                                    fg="#27ae60")
+                                return
+                    except Exception:
+                        pass
+                    detect_status.configure(
+                        text="该 API 不支持模型列表查询，请手动输入模型名称",
+                        fg=self.COLORS["orange"])
+                else:
+                    detect_status.configure(
+                        text=f"API 返回状态码 {resp.status_code}，请检查地址和密钥",
+                        fg=self.COLORS["red"])
+            except Exception as e:
+                detect_status.configure(text=f"连接失败: {str(e)[:50]}",
+                                        fg=self.COLORS["red"])
+            finally:
+                detect_btn.configure(state=tk.NORMAL, text="检测模型")
+
+        detect_btn.configure(command=on_detect)
 
         def save():
-            data = {}
-            for key in fields:
-                val = entries[key[0]].get().strip()
-                if val:
-                    data[key[0]] = val
+            data = {
+                "api_key": api_key_entry.get().strip(),
+                "base_url": base_url_entry.get().strip(),
+                "model": model_combo.get().strip(),
+            }
+            # 过滤掉空值
+            data = {k: v for k, v in data.items() if v}
 
             if not data.get("api_key"):
                 messagebox.showwarning("提示", "请输入 API 密钥", parent=dialog)
@@ -460,22 +573,22 @@ class NewsDailyGUI:
                   command=save,
                   bg=self.COLORS["primary"], fg="white",
                   font=("Microsoft YaHei", 10),
-                  relief=tk.FLAT, padx=20,
-                  cursor="hand2").pack(side=tk.RIGHT)
+                  relief=tk.FLAT, padx=20).pack(side=tk.RIGHT)
 
     def _open_login_manager(self):
         """打开登录管理器"""
-        # 定义需要登录的站点
         login_sites = [
             {"id": "douyin_creator", "name": "抖音创作者中心", "url": "https://creator.douyin.com/",
-             "login_url": "https://creator.douyin.com/login", "desc": "查看热门话题、创作指南"},
+             "login_url": "https://creator.douyin.com/", "desc": "查看热门话题、创作指南"},
             {"id": "oceanengine", "name": "巨量引擎", "url": "https://www.oceanengine.com/",
-             "login_url": "https://www.oceanengine.com/login", "desc": "广告投放趋势、平台政策"},
+             "login_url": "https://ad.oceanengine.com/", "desc": "广告投放趋势、平台政策"},
+            {"id": "douyin_school", "name": "抖音电商学习中心", "url": "https://school.jinritemai.com/",
+             "login_url": "https://school.jinritemai.com/", "desc": "电商运营学习课程"},
         ]
 
         dialog = tk.Toplevel(self.root)
         dialog.title("登录管理器")
-        dialog.geometry("520x320")
+        dialog.geometry("580x420")
         dialog.resizable(False, False)
         dialog.configure(bg=self.COLORS["bg_card"])
         dialog.transient(self.root)
@@ -484,15 +597,34 @@ class NewsDailyGUI:
         tk.Label(dialog, text="登录会话管理",
                  font=("Microsoft YaHei", 13, "bold"),
                  fg=self.COLORS["text_dark"],
-                 bg=self.COLORS["bg_card"]).pack(pady=(12, 4))
+                 bg=self.COLORS["bg_card"]).pack(pady=(14, 2))
 
         tk.Label(dialog, text="登录后自动保存Cookie，下次采集无需重复登录",
                  font=("Microsoft YaHei", 9),
                  fg=self.COLORS["gray"],
-                 bg=self.COLORS["bg_card"]).pack()
+                 bg=self.COLORS["bg_card"]).pack(pady=(0, 6))
 
-        frame = tk.Frame(dialog, bg=self.COLORS["bg_card"], padx=20, pady=8)
-        frame.pack(fill="both", expand=True)
+        # 可滚动的站点列表
+        list_container = tk.Frame(dialog, bg=self.COLORS["bg_card"])
+        list_container.pack(fill="both", expand=True, padx=20, pady=(0, 8))
+
+        list_canvas = tk.Canvas(list_container, bg=self.COLORS["bg_card"],
+                                highlightthickness=0)
+        list_scroll = tk.Scrollbar(list_container, orient=tk.VERTICAL, command=list_canvas.yview)
+        list_frame = tk.Frame(list_canvas, bg=self.COLORS["bg_card"])
+
+        list_frame.bind("<Configure>",
+                        lambda e: list_canvas.configure(scrollregion=list_canvas.bbox("all")))
+        list_canvas.create_window((0, 0), window=list_frame, anchor="nw", tags="inner")
+        list_canvas.configure(yscrollcommand=list_scroll.set)
+
+        def _on_list_scroll(event):
+            list_canvas.yview_scroll(-1 * (event.delta // 120), "units")
+        list_canvas.bind("<MouseWheel>", _on_list_scroll)
+        list_frame.bind("<MouseWheel>", _on_list_scroll)
+
+        list_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        list_scroll.pack(side=tk.RIGHT, fill=tk.Y)
 
         # 从数据库读取登录状态
         session_status = {}
@@ -505,16 +637,26 @@ class NewsDailyGUI:
 
         for site in login_sites:
             sid = site["id"]
-            logged_in = session_status.get(sid, {}).get("is_active", False)
-            card = tk.Frame(frame, bg=self.COLORS["bg_light"], padx=12, pady=8, relief="flat", bd=0)
+            sess = session_status.get(sid, {})
+            logged_in = sess.get("is_active", False)
+            logged_in_at = sess.get("logged_in_at", "")
+
+            card = tk.Frame(list_frame, bg=self.COLORS["bg_light"], padx=12, pady=8, relief="flat", bd=0)
             card.pack(fill="x", pady=4)
 
             row1 = tk.Frame(card, bg=self.COLORS["bg_light"])
             row1.pack(fill="x")
             tk.Label(row1, text=site["name"], font=("Microsoft YaHei", 11, "bold"),
                      fg=self.COLORS["text_dark"], bg=self.COLORS["bg_light"]).pack(side="left")
-            status_text = "已登录" if logged_in else "未登录"
-            status_color = "#27ae60" if logged_in else "#e74c3c"
+
+            if logged_in:
+                status_text = "✓ 已登录"
+                if logged_in_at:
+                    status_text += f"  ({logged_in_at[:16]})"
+                status_color = "#27ae60"
+            else:
+                status_text = "未登录"
+                status_color = "#e74c3c"
             tk.Label(row1, text=status_text, font=("Microsoft YaHei", 9),
                      fg=status_color, bg=self.COLORS["bg_light"]).pack(side="right")
 
@@ -526,11 +668,32 @@ class NewsDailyGUI:
                     self._do_login(dialog, site_id, site_name, login_url)
                 return cmd
 
-            btn_text = "重新登录" if logged_in else "去登录"
-            tk.Button(card, text=btn_text,
+            def make_logout_cmd(site_id):
+                def cmd():
+                    from system.database import get_conn
+                    conn = get_conn()
+                    try:
+                        conn.execute("UPDATE login_sessions SET is_active=0 WHERE site_id=?", (site_id,))
+                        conn.commit()
+                    finally:
+                        conn.close()
+                    dialog.destroy()
+                    self._log(f"{site_id} 已退出登录")
+                    self._open_login_manager()
+                return cmd
+
+            btn_row = tk.Frame(card, bg=self.COLORS["bg_light"])
+            btn_row.pack(fill="x", pady=(4, 0))
+
+            tk.Button(btn_row, text="重新登录" if logged_in else "去登录",
                       command=make_login_cmd(sid, site["name"], site["login_url"]),
                       bg="#667eea", fg="white", font=("Microsoft YaHei", 9),
-                      padx=12, relief="flat", cursor="hand2").pack(anchor="w", pady=(4, 0))
+                      padx=12, relief="flat", cursor="hand2").pack(side="left")
+
+            if logged_in:
+                tk.Button(btn_row, text="退出登录", font=("Microsoft YaHei", 9),
+                          bg="#e74c3c", fg="white", relief="flat", padx=12,
+                          cursor="hand2", command=make_logout_cmd(sid)).pack(side="left", padx=(6, 0))
 
         tk.Button(dialog, text="关闭", command=dialog.destroy,
                   font=("Microsoft YaHei", 10), relief="flat", padx=20).pack(pady=(4, 10))
@@ -538,58 +701,82 @@ class NewsDailyGUI:
     def _quick_login(self, site_id, site_name, login_url):
         """从侧边栏快速登录"""
         self._log(f"正在打开浏览器登录 {site_name}...")
-        self._execute_login(site_id, site_name, login_url)
+        threading.Thread(target=self._execute_login, args=(site_id, site_name, login_url), daemon=True).start()
 
     def _do_login(self, parent_dialog, site_id, site_name, login_url):
         """从登录管理器执行登录"""
         self._log(f"正在打开浏览器登录 {site_name}...")
         parent_dialog.destroy()
-        self._execute_login(site_id, site_name, login_url)
+        threading.Thread(target=self._execute_login, args=(site_id, site_name, login_url), daemon=True).start()
 
     def _execute_login(self, site_id, site_name, login_url):
+        try:
+            import json
+            import time
+            from playwright.sync_api import sync_playwright
+        except ImportError:
+            self._log("错误：Playwright 未安装，请执行: pip install playwright && python -m playwright install chromium")
+            return
+
+        cookie_file = DATA_DIR / "sessions" / f"{site_id}_cookies.json"
 
         try:
-            from playwright.sync_api import sync_playwright
-            import json
-
             with sync_playwright() as p:
-                browser = p.chromium.launch_persistent_context(
-                    user_data_dir=str(DATA_DIR / "sessions" / site_id),
-                    headless=False, viewport={"width": 1280, "height": 800}, locale="zh-CN",
-                )
-                page = browser.new_page()
+                # 依次尝试启动系统 Chrome → Edge → Playwright 内置 Chromium
+                browser = None
+                for ch in ["chrome", "msedge", None]:
+                    try:
+                        kw = {"channel": ch, "headless": False} if ch else {"headless": False}
+                        browser = p.chromium.launch(**kw)
+                        browser_name = ch or "Playwright Chromium"
+                        self._log(f"已打开 {browser_name}，请在浏览器窗口中登录 {site_name}")
+                        break
+                    except Exception:
+                        continue
+
+                if browser is None:
+                    self._log("错误：无法启动任何浏览器，请检查 Chrome/Edge 是否已安装，或执行: python -m playwright install chromium")
+                    return
+
+                # 创建新上下文并加载已有 Cookie
+                context = browser.new_context()
+                if cookie_file.exists():
+                    try:
+                        saved = json.loads(cookie_file.read_text(encoding="utf-8"))
+                        context.add_cookies(saved)
+                    except Exception:
+                        pass
+
+                page = context.new_page()
                 page.goto(login_url, wait_until="domcontentloaded")
 
                 self._log(f"请在浏览器中登录 {site_name}，登录后关闭浏览器窗口即可")
 
-                # 等待用户关闭浏览器
-                import time
+                # 等待登录完成（检测 URL 不再包含 login）
                 while True:
                     try:
-                        if len(browser.pages) == 0:
+                        if len(context.pages) == 0:
                             break
-                        current = browser.pages[0].url if browser.pages else ""
-                        if "login" not in current.lower() and current != "about:blank":
+                        current = context.pages[0].url if context.pages else ""
+                        if current and "login" not in current.lower() and current != "about:blank":
                             self._log("检测到登录成功！正在保存Cookie...")
                             break
                     except Exception:
                         break
                     time.sleep(1)
 
-                cookies = browser.cookies()
+                cookies = context.cookies()
                 browser.close()
 
                 # 保存到数据库
                 from system.database import save_login_session
                 save_login_session(site_id, site_name, cookies)
                 self._log(f"{site_name} 登录成功，已保存 {len(cookies)} 条Cookie")
-                # 同时保存到文件（兼容旧版）
-                cookie_file = DATA_DIR / "sessions" / f"{site_id}_cookies.json"
                 cookie_file.parent.mkdir(parents=True, exist_ok=True)
                 cookie_file.write_text(json.dumps(cookies, ensure_ascii=False, indent=2), encoding="utf-8")
 
-        except ImportError:
-            self._log("错误：Playwright 未安装，请执行: pip install playwright && python -m playwright install chromium")
+        except Exception as e:
+            self._log(f"登录过程出错: {type(e).__name__}: {e}")
 
     # ==================== 操作 ====================
 
@@ -700,4 +887,13 @@ def launch_app():
 
 
 if __name__ == "__main__":
-    launch_app()
+    try:
+        launch_app()
+    except Exception as e:
+        import traceback
+        try:
+            crash_log = Path(sys.executable if getattr(sys, 'frozen', False) else __file__).parent / "crash_error.log"
+            crash_log.write_text(traceback.format_exc(), encoding="utf-8")
+        except Exception:
+            pass
+        raise

@@ -110,42 +110,25 @@ POLITICAL_WEB_SOURCES = [
     },
 ]
 
-# AIGC 行业新闻源（AI影视传媒方向）
+# AIGC 行业新闻源（国内权威媒体）
 AIGC_NEWS_SOURCES = [
     {
-        "name": "爱范儿",
-        "type": "rss",
-        "url": "https://www.ifanr.com/feed",
+        "name": "人民网科技",
+        "type": "web",
+        "url": "http://scitech.people.com.cn/",
+        "category": "industry",
     },
     {
-        "name": "TechCrunch",
-        "type": "rss",
-        "url": "https://techcrunch.com/feed/",
+        "name": "新华网数字",
+        "type": "web",
+        "url": "https://www.xinhuanet.com/digital/",
+        "category": "industry",
     },
     {
-        "name": "ArsTechnica",
-        "type": "rss",
-        "url": "https://feeds.arstechnica.com/arstechnica/index",
-    },
-    {
-        "name": "Variety",
-        "type": "rss",
-        "url": "https://variety.com/feed/",
-    },
-    {
-        "name": "The Hollywood Reporter",
-        "type": "rss",
-        "url": "https://www.hollywoodreporter.com/feed/",
-    },
-    {
-        "name": "AI News",
-        "type": "rss",
-        "url": "https://www.artificialintelligence-news.com/feed/",
-    },
-    {
-        "name": "Hacker News",
-        "type": "rss",
-        "url": "https://news.ycombinator.com/rss",
+        "name": "央视网AI",
+        "type": "web",
+        "url": "https://www.cctv.com/",
+        "category": "industry",
     },
 ]
 
@@ -189,6 +172,7 @@ WEB_SCRAPE_SOURCES = [
         "url": "https://www.oceanengine.com/news",
         "category": "industry",
         "need_login": True,
+        "site_id": "oceanengine",
     },
     {
         "name": "抖音电商学习中心",
@@ -202,6 +186,7 @@ WEB_SCRAPE_SOURCES = [
         "url": "https://creator.douyin.com/",
         "category": "industry",
         "need_login": True,
+        "site_id": "douyin_creator",
     },
     # --- 行业媒体 ---
     {
