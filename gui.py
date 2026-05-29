@@ -693,8 +693,16 @@ class NewsDailyGUI:
                         conn.commit()
                     finally:
                         conn.close()
+                    # 清除本地缓存的Cookie文件和Playwright用户数据目录
+                    import shutil
+                    cookie_file = DATA_DIR / "sessions" / f"{site_id}_cookies.json"
+                    if cookie_file.exists():
+                        cookie_file.unlink()
+                    sess_dir = DATA_DIR / "sessions" / site_id
+                    if sess_dir.exists():
+                        shutil.rmtree(sess_dir, ignore_errors=True)
                     dialog.destroy()
-                    self._log(f"{site_id} 已退出登录")
+                    self._log(f"{site_id} 已退出登录，Cookie已清除")
                     self._open_login_manager()
                 return cmd
 
@@ -734,38 +742,14 @@ class NewsDailyGUI:
             self._log("错误：Playwright 未安装，请执行: pip install playwright && python -m playwright install chromium")
             return
 
-        cookie_file = DATA_DIR / "sessions" / f"{site_id}_cookies.json"
-
         try:
             with sync_playwright() as p:
-                # 依次尝试启动系统 Chrome → Edge → Playwright 内置 Chromium
-                browser = None
-                for ch in ["chrome", "msedge", None]:
-                    try:
-                        kw = {"channel": ch, "headless": False} if ch else {"headless": False}
-                        browser = p.chromium.launch(**kw)
-                        browser_name = ch or "Playwright Chromium"
-                        self._log(f"已打开 {browser_name}，请在浏览器窗口中登录 {site_name}")
-                        break
-                    except Exception:
-                        continue
-
-                if browser is None:
-                    self._log("错误：无法启动任何浏览器，请检查 Chrome/Edge 是否已安装，或执行: python -m playwright install chromium")
-                    return
-
-                # 创建新上下文并加载已有 Cookie
+                # 使用 Playwright 内置 Chromium（不影响用户自己的 Chrome）
+                browser = p.chromium.launch(headless=False)
+                self._log(f"已打开 Playwright 内置浏览器，请在窗口中登录 {site_name}")
                 context = browser.new_context()
-                if cookie_file.exists():
-                    try:
-                        saved = json.loads(cookie_file.read_text(encoding="utf-8"))
-                        context.add_cookies(saved)
-                    except Exception:
-                        pass
-
                 page = context.new_page()
                 page.goto(login_url, wait_until="domcontentloaded")
-
                 self._log(f"请在浏览器中登录 {site_name}，登录后关闭浏览器窗口即可")
 
                 # 等待登录完成（检测 URL 不再包含 login）
