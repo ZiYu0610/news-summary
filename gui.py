@@ -29,11 +29,16 @@ sys.path.insert(0, str(BASE_DIR))
 
 DATA_DIR = PROJECT_DIR / "data"
 REPORTS_DIR = DATA_DIR / "reports"
-MONTH_DIR = REPORTS_DIR / datetime.now().strftime("%Y年%m月")
 
-# 确保目录存在
-for d in [DATA_DIR, REPORTS_DIR, MONTH_DIR, DATA_DIR / "news"]:
+# 确保基础目录存在
+for d in [DATA_DIR, REPORTS_DIR, DATA_DIR / "news"]:
     d.mkdir(parents=True, exist_ok=True)
+
+
+def _get_month_dir():
+    """获取当前用户的月报告目录"""
+    from config import get_user_report_dir
+    return get_user_report_dir()
 
 
 class GUILogHandler(logging.Handler):
@@ -72,12 +77,16 @@ class NewsDailyGUI:
         "border": "#e2e8f0",
     }
 
-    def __init__(self, root):
+    def __init__(self, root, username="default"):
         self.root = root
+        self.username = username
         self.root.title("AI 新闻日报系统")
         self.root.geometry("960x720")
         self.root.minsize(800, 600)
         self.root.configure(bg=self.COLORS["bg_dark"])
+
+        from config import get_user_report_dir
+        self.month_dir = get_user_report_dir()
 
         self._check_api()
         self._build_ui()
@@ -188,7 +197,7 @@ class NewsDailyGUI:
         api_color = "#4ade80" if self.api_key else "#fbbf24"
         tk.Label(
             header,
-            text=f"报告目录: {MONTH_DIR}    |    {api_text}",
+            text=f"报告目录: {self.month_dir}    |    {api_text}",
             fg=api_color,
             bg=self.COLORS["bg_dark"],
             font=("Microsoft YaHei", 9),
@@ -246,12 +255,20 @@ class NewsDailyGUI:
         # 分隔线
         tk.Frame(parent, bg=self.COLORS["border"], height=1).pack(fill=tk.X, padx=16, pady=10)
 
+        # 自定义日报
+        tk.Label(parent, text="自 定 义 日 报", font=("Microsoft YaHei", 11, "bold"),
+                 fg=self.COLORS["text_dark"], bg=self.COLORS["bg_card"]).pack(**pad)
+        self._btn(parent, "自定义日报", "#8b5cf6", self._open_custom_report)
+
+        # 分隔线
+        tk.Frame(parent, bg=self.COLORS["border"], height=1).pack(fill=tk.X, padx=16, pady=10)
+
         # 查看
         tk.Label(parent, text="查 看", font=("Microsoft YaHei", 11, "bold"),
                  fg=self.COLORS["text_dark"], bg=self.COLORS["bg_card"]).pack(**pad)
         for btn in [
             ("查看最新日报", self.COLORS["gray"], self._open_reports),
-            ("报告目录", self.COLORS["gray"], lambda: os.startfile(str(MONTH_DIR)) if hasattr(os, 'startfile') else None),
+            ("报告目录", self.COLORS["gray"], lambda: os.startfile(str(self.month_dir)) if hasattr(os, 'startfile') else None),
         ]:
             self._btn(parent, *btn)
 
@@ -747,6 +764,11 @@ class NewsDailyGUI:
 
             with sync_playwright() as p:
                 sess_dir = str(DATA_DIR / "sessions" / site_id)
+                # 清除旧会话目录，确保每次登录都是全新会话（可切换账号）
+                import shutil as _shutil2
+                _p = Path(sess_dir)
+                if _p.exists():
+                    _shutil2.rmtree(_p, ignore_errors=True)
                 browser = None
                 for ch in ["chrome", "msedge", None]:
                     try:
@@ -979,7 +1001,7 @@ class NewsDailyGUI:
             "political": ("*时政日报.html", "时政"),
             "industry": ("*AI日报.html", "AI"),
         }.get(mode, ("*日报.html", ""))
-        files = sorted(MONTH_DIR.glob(pattern), reverse=True)
+        files = sorted(self.month_dir.glob(pattern), reverse=True)
         if files:
             webbrowser.open(str(files[0]))
             self._log(f"{icon}日报: {files[0].name}")
@@ -1009,10 +1031,268 @@ class NewsDailyGUI:
         except Exception as e:
             self.root.after(0, lambda: self._log(f"错误: {e}"))
 
+    def _open_custom_report(self):
+        """打开自定义日报对话框"""
+        from config import POLITICAL_WEB_SOURCES, WEB_SCRAPE_SOURCES, AIGC_NEWS_SOURCES
+
+        dialog = tk.Toplevel(self.root)
+        dialog.title("自定义日报")
+        dialog.geometry("620x550")
+        dialog.resizable(False, False)
+        dialog.configure(bg=self.COLORS["bg_card"])
+        dialog.transient(self.root)
+        dialog.grab_set()
+
+        tk.Label(dialog, text="自定义日报",
+                 font=("Microsoft YaHei", 14, "bold"),
+                 fg=self.COLORS["text_dark"],
+                 bg=self.COLORS["bg_card"]).pack(pady=(14, 4))
+
+        tk.Label(dialog,
+                 text="勾选你想要的信息来源，点击生成即可获得专属日报",
+                 font=("Microsoft YaHei", 9),
+                 fg=self.COLORS["gray"],
+                 bg=self.COLORS["bg_card"]).pack(pady=(0, 8))
+
+        # 可滚动的Canvas容器
+        container = tk.Frame(dialog, bg=self.COLORS["bg_card"])
+        container.pack(fill=tk.BOTH, expand=True, padx=20, pady=(0, 4))
+
+        canvas = tk.Canvas(container, bg=self.COLORS["bg_card"],
+                           highlightthickness=0, height=320)
+        scrollbar = tk.Scrollbar(container, orient=tk.VERTICAL, command=canvas.yview)
+        inner = tk.Frame(canvas, bg=self.COLORS["bg_card"])
+        inner.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0, 0), window=inner, anchor="nw")
+
+        def _on_wheel(event):
+            canvas.yview_scroll(-1 * (event.delta // 120), "units")
+        canvas.bind("<MouseWheel>", _on_wheel)
+        inner.bind("<MouseWheel>", _on_wheel)
+
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # 收集所有源
+        all_sources = []
+        for s in POLITICAL_WEB_SOURCES:
+            all_sources.append((s["name"], s["category"], "时政"))
+        for s in AIGC_NEWS_SOURCES:
+            cat = s.get("category", "industry")
+            all_sources.append((s["name"], cat, "AI行业"))
+        for s in WEB_SCRAPE_SOURCES:
+            cat = s.get("category", "industry")
+            all_sources.append((s["name"], cat, "AI行业/政策"))
+
+        # 分组
+        groups = {}
+        for name, cat, group_label in all_sources:
+            if group_label not in groups:
+                groups[group_label] = []
+            groups[group_label].append((name, cat))
+
+        check_vars = {}
+
+        for group_label, items in groups.items():
+            tk.Label(inner, text=group_label,
+                     font=("Microsoft YaHei", 11, "bold"),
+                     fg=self.COLORS["primary"], bg=self.COLORS["bg_card"],
+                     anchor="w").pack(fill=tk.X, pady=(10, 2))
+
+            for name, cat in items:
+                var = tk.BooleanVar(value=True)
+                check_vars[name] = var
+                cb = tk.Checkbutton(inner, text=name, variable=var,
+                                    font=("Microsoft YaHei", 9),
+                                    fg=self.COLORS["text_dark"],
+                                    bg=self.COLORS["bg_card"],
+                                    selectcolor=self.COLORS["bg_light"],
+                                    activebackground=self.COLORS["bg_card"])
+                cb.pack(anchor="w", padx=16)
+
+        def select_all():
+            for v in check_vars.values():
+                v.set(True)
+
+        def deselect_all():
+            for v in check_vars.values():
+                v.set(False)
+
+        sel_frame = tk.Frame(inner, bg=self.COLORS["bg_card"])
+        sel_frame.pack(fill=tk.X, pady=(8, 0))
+        tk.Button(sel_frame, text="全选", font=("Microsoft YaHei", 8),
+                  bg=self.COLORS["gray"], fg="white", relief=tk.FLAT,
+                  padx=8, cursor="hand2", command=select_all).pack(side=tk.LEFT, padx=(0, 6))
+        tk.Button(sel_frame, text="全不选", font=("Microsoft YaHei", 8),
+                  bg=self.COLORS["gray"], fg="white", relief=tk.FLAT,
+                  padx=8, cursor="hand2", command=deselect_all).pack(side=tk.LEFT)
+
+        btn_frame = tk.Frame(dialog, bg=self.COLORS["bg_card"])
+        btn_frame.pack(fill=tk.X, padx=20, pady=(8, 14))
+
+        tk.Button(btn_frame, text="取消",
+                  command=dialog.destroy,
+                  font=("Microsoft YaHei", 10),
+                  relief=tk.FLAT, padx=20).pack(side=tk.RIGHT, padx=(8, 0))
+
+        def generate():
+            selected = [name for name, var in check_vars.items() if var.get()]
+            if not selected:
+                tk.messagebox.showwarning("提示", "请至少选择一个来源", parent=dialog)
+                return
+            dialog.destroy()
+            self._log(f"开始生成自定义日报，已选择 {len(selected)} 个来源")
+            self._progress_bar.configure(value=0)
+            self._progress_frame.pack(fill=tk.X, padx=16, pady=(0, 4))
+            threading.Thread(target=self._custom_report_task,
+                             args=(selected,), daemon=True).start()
+
+        tk.Button(btn_frame, text="生成",
+                  command=generate,
+                  bg=self.COLORS["primary"], fg="white",
+                  font=("Microsoft YaHei", 10),
+                  relief=tk.FLAT, padx=20, cursor="hand2").pack(side=tk.RIGHT)
+
+    def _custom_report_task(self, selected_sources):
+        """后台生成自定义日报"""
+        try:
+            from collector.news_collector import collect_political_news, collect_industry_news
+            from summarizer.summarizer import ClaudeClient, _format_articles_for_prompt
+
+            self._set_progress(5, "按选择采集新闻中...")
+
+            # 采集所有新闻
+            all_political = collect_political_news(days=2)
+            all_industry = collect_industry_news(days=2)
+
+            # 按选中的源过滤
+            selected_set = set(selected_sources)
+            political_filtered = [a for a in all_political if a.get("source") in selected_set]
+            industry_filtered = [a for a in all_industry if a.get("source") in selected_set]
+
+            self._set_progress(25, f"筛选完成: 时政{len(political_filtered)}条, 行业{len(industry_filtered)}条")
+
+            if not political_filtered and not industry_filtered:
+                self.root.after(0, lambda: self._log("所选来源无可用新闻"))
+                self.root.after(500, lambda: self._progress_frame.pack_forget())
+                return
+
+            # 合并为统一列表用于AI摘要
+            all_filtered = political_filtered + industry_filtered
+            combined_prompt = _format_articles_for_prompt(all_filtered)
+
+            self._set_progress(30, "AI总结中...", indeterminate=True)
+
+            SYSTEM_PROMPT = """你是专业的新闻分析师。请对以下自定义选择的新闻进行总结。
+    每条新闻前标注了 [#N] 编号，你必须在末尾标注 [来源：XXX #N]。
+    严格去重，按重要性排序。每条控制在60字以内，开头标注 [MM-DD] 日期。
+
+    输出格式：
+    ## 自定义日报
+    ### 重点新闻（5-8条）
+    - [MM-DD] [标题]：摘要 [来源：XXX #N]
+    ### 其他要闻（剩余条目）
+    - [MM-DD] [标题]：摘要 [来源：XXX #N]
+    ### 关键洞察（2-3条）
+    从业者视角的 actionable 建议"""
+            client = ClaudeClient()
+            prompt = f"请总结以下自定义新闻（共{len(all_filtered)}条，来源：{', '.join(selected_sources)}）：\n\n{combined_prompt}"
+            summary = client.chat(SYSTEM_PROMPT, [{"role": "user", "content": prompt}])
+
+            if not summary or not summary.strip():
+                self.root.after(0, lambda: self._log("AI返回空内容"))
+                self.root.after(500, lambda: self._progress_frame.pack_forget())
+                return
+
+            self._set_progress(80, "生成报告中...")
+
+            # 生成HTML
+            from report.report_generator import _summary_to_html
+            today_str = datetime.now().strftime("%Y年%m月%d日")
+            news_html = _summary_to_html(summary, articles=all_filtered)
+
+            html = f"""<!DOCTYPE html>
+    <html lang="zh-CN">
+    <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{today_str} 自定义日报</title>
+    <style>
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, "PingFang SC",
+                         "Microsoft YaHei", "Noto Sans SC", sans-serif;
+            background: #f0f2f5; color: #1a1a2e; line-height: 1.9;
+        }}
+        .container {{ max-width: 860px; margin: 0 auto; padding: 20px; }}
+        .header {{
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white; padding: 48px 36px; border-radius: 16px; margin-bottom: 24px;
+        }}
+        .header h1 {{ font-size: 28px; font-weight: 700; }}
+        .header .date {{ font-size: 16px; opacity: 0.8; margin-top: 8px; }}
+        .header .sources {{ font-size: 12px; opacity: 0.6; margin-top: 4px; }}
+        .section {{
+            background: white; border-radius: 12px; padding: 28px 32px;
+            margin-bottom: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+        }}
+        .section h2 {{
+            font-size: 20px; color: #1a1a2e;
+            border-bottom: 3px solid #667eea; padding-bottom: 10px; margin-bottom: 18px;
+        }}
+        .section h3 {{
+            font-size: 16px; color: #1a1a2e;
+            margin: 18px 0 10px 0; padding-left: 10px; border-left: 3px solid #667eea;
+        }}
+        .section ul {{ padding-left: 20px; }}
+        .section li {{ margin-bottom: 8px; font-size: 15px; }}
+        .section li::marker {{ color: #667eea; }}
+        .source-link {{
+            display: inline-block; background: #eef0ff; color: #5b6abf;
+            font-size: 12px; padding: 1px 10px; border-radius: 10px;
+            margin: 0 2px; white-space: nowrap; text-decoration: none;
+        }}
+        .source-link:hover {{ background: #d0d5ff; text-decoration: underline; }}
+        .source-tag {{
+            display: inline-block; background: #eef0ff; color: #5b6abf;
+            font-size: 12px; padding: 1px 10px; border-radius: 10px; margin: 0 2px;
+        }}
+        .footer {{ text-align: center; color: #aaa; font-size: 12px; padding: 20px; }}
+    </style>
+    </head>
+    <body>
+    <div class="container">
+        <div class="header">
+            <h1>自定义日报</h1>
+            <div class="date">{today_str}</div>
+            <div class="sources">数据来源：{', '.join(selected_sources)}</div>
+        </div>
+        <div class="section">{news_html}</div>
+        <div class="footer">
+            <p>由人工智能自动生成 · {datetime.now().strftime('%Y年%m月%d日 %H:%M')}</p>
+        </div>
+    </div>
+    </body>
+    </html>"""
+
+            filename = f"{today_str}自定义日报.html"
+            filepath = self.month_dir / filename
+            filepath.write_text(html, encoding="utf-8")
+            self._set_progress(100, "完成")
+
+            self.root.after(0, lambda: self._log(f"自定义日报已生成: {filepath.name}"))
+            self.root.after(500, lambda: webbrowser.open(str(filepath)))
+            self.root.after(1500, lambda: self._progress_frame.pack_forget())
+        except Exception as e:
+            import traceback
+            self.root.after(0, lambda: self._log(f"自定义日报生成失败: {e}"))
+            self.root.after(0, lambda: self._log(traceback.format_exc()[:300]))
+            self.root.after(500, lambda: self._progress_frame.pack_forget())
+
     def _open_reports(self):
         opened = False
         for pattern, icon in [("*时政日报.html", "时政"), ("*AI日报.html", "AI")]:
-            files = sorted(MONTH_DIR.glob(pattern), reverse=True)
+            files = sorted(self.month_dir.glob(pattern), reverse=True)
             if files:
                 webbrowser.open(str(files[0]))
                 self._log(f"{icon}日报: {files[0].name}")
@@ -1047,11 +1327,15 @@ def launch_app():
         # 用户关闭登录窗口
         return
 
-    # 登录成功，启动主界面
+    # 登录成功，设置用户专属目录
+    username = user.get('username', 'default')
+    from config import set_current_user
+    set_current_user(username)
+
+    # 启动主界面
     root = tk.Tk()
-    app = NewsDailyGUI(root)
-    # 在标题栏显示用户名
-    root.title(f"AI新闻日报系统 - {user.get('username', '')}")
+    app = NewsDailyGUI(root, username)
+    root.title(f"AI新闻日报系统 - {username}")
     root.mainloop()
 
 

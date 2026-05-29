@@ -14,11 +14,41 @@ NEWS_DIR = DATA_DIR / "news"
 REPORTS_DIR = DATA_DIR / "reports"
 PRICE_FILE = DATA_DIR / "prices.json"
 
-# 报告按月分类的目录，如：data/reports/2026年5月/
-MONTH_DIR = REPORTS_DIR / datetime.now().strftime("%Y年%m月")
+# 当前登录用户名（由GUI设置），用于用户隔离的日报目录
+_CURRENT_USER = "default"
+
+
+def set_current_user(username: str):
+    """设置当前用户，影响日报目录结构"""
+    global _CURRENT_USER, MONTH_DIR, _USER_REPORT_DIR
+    _CURRENT_USER = username or "default"
+    _USER_REPORT_DIR = REPORTS_DIR / _CURRENT_USER
+    now = datetime.now()
+    MONTH_DIR = _USER_REPORT_DIR / str(now.year) / f"{now.month:02d}月"
+    MONTH_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def get_user_report_dir(username: str = None) -> Path:
+    """获取用户专属日报目录"""
+    u = username or _CURRENT_USER
+    now = datetime.now()
+    d = REPORTS_DIR / u / str(now.year) / f"{now.month:02d}月"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def get_user_month_dir(username: str, year: int, month: int) -> Path:
+    """获取指定用户指定年月的日报目录"""
+    d = REPORTS_DIR / username / str(year) / f"{month:02d}月"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+_USER_REPORT_DIR = REPORTS_DIR / _CURRENT_USER
+MONTH_DIR = _USER_REPORT_DIR / str(datetime.now().year) / f"{datetime.now().month:02d}月"
 
 # 确保目录存在
-for d in [DATA_DIR, NEWS_DIR, REPORTS_DIR, MONTH_DIR]:
+for d in [DATA_DIR, NEWS_DIR, MONTH_DIR]:
     d.mkdir(parents=True, exist_ok=True)
 
 # ===== Claude API 配置（支持本地配置文件覆盖） =====
@@ -107,6 +137,31 @@ POLITICAL_WEB_SOURCES = [
         "type": "web",
         "url": "https://zjnews.zjol.com.cn/",
         "category": "political",
+    },
+    # --- 浙江省/杭州市区域 ---
+    {
+        "name": "杭州日报",
+        "type": "web",
+        "url": "https://hzdaily.hangzhou.com.cn/",
+        "category": "political_zhejiang",
+    },
+    {
+        "name": "浙江省政府",
+        "type": "web",
+        "url": "https://www.zj.gov.cn/",
+        "category": "political_zhejiang",
+    },
+    {
+        "name": "杭州市政府",
+        "type": "web",
+        "url": "https://www.hangzhou.gov.cn/",
+        "category": "political_zhejiang",
+    },
+    {
+        "name": "杭州网",
+        "type": "web",
+        "url": "https://www.hangzhou.com.cn/",
+        "category": "political_zhejiang",
     },
 ]
 
