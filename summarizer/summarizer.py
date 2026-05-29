@@ -240,11 +240,12 @@ COMBINED_SUMMARY_SYSTEM = """你是一位专业的新闻分析师和AI影视传�
 
 # ==================== 总结函数 ====================
 
-def _format_articles_for_prompt(articles: List[Dict], max_count: int = 30) -> str:
+def _format_articles_for_prompt(articles: List[Dict], max_count: int = 30, start: int = 1) -> str:
     """将文章列表格式化为prompt文本（含编号、来源链接、日期）"""
     from datetime import datetime
     lines = []
-    for i, art in enumerate(articles[:max_count], 1):
+    for offset, art in enumerate(articles[:max_count]):
+        i = start + offset
         title = art.get("title", "无标题")
         summary = art.get("summary", "")
         source = art.get("source", "未知来源")
@@ -290,25 +291,32 @@ def summarize_political(news_list: List[Dict], client: Optional[ClaudeClient] = 
         return _fallback_summary(news_list, "时政要闻")
 
 
-def summarize_industry(news_list: List[Dict], competition_list: Optional[List[Dict]] = None, client: Optional[ClaudeClient] = None) -> str:
-    """总结AIGC行业新闻（含比赛信息）"""
+def summarize_industry(news_list: List[Dict], competition_list: Optional[List[Dict]] = None, client: Optional[ClaudeClient] = None):
+    """总结AIGC行业新闻（含比赛信息）
+    返回: (summary_text, combined_articles) — combined_articles 用于报告溯源
+    """
     if not news_list:
-        return "## 🎯 AIGC行业日报\n\n暂无行业新闻数据。"
+        return "## 🎯 AIGC行业日报\n\n暂无行业新闻数据。", []
 
     if client is None:
         client = ClaudeClient()
 
+    # 合并新闻+比赛为连续编号列表（AI看到的编号 = 列表索引+1）
+    combined = list(news_list)
     content = _format_articles_for_prompt(news_list)
     if competition_list:
+        combined.extend(competition_list)
         content += "\n\n=== AIGC比赛信息 ===\n"
-        content += _format_articles_for_prompt(competition_list)
+        content += _format_articles_for_prompt(competition_list, start=len(news_list) + 1)
+
     prompt = f"请分析总结以下AIGC行业新闻（今天是{datetime.now().strftime('%Y年%m月%d日')}）：\n\n{content}"
 
     try:
-        return client.chat(INDUSTRY_SUMMARY_SYSTEM, [{"role": "user", "content": prompt}])
+        summary = client.chat(INDUSTRY_SUMMARY_SYSTEM, [{"role": "user", "content": prompt}])
+        return summary, combined
     except Exception as e:
         logger.error(f"行业新闻总结失败: {e}")
-        return _fallback_summary(news_list, "AIGC行业")
+        return _fallback_summary(news_list, "AIGC行业"), combined
 
 
 def summarize_all(news_data: Dict[str, List[Dict]], client: Optional[ClaudeClient] = None) -> Dict[str, str]:

@@ -836,7 +836,12 @@ class NewsDailyGUI:
 
             if mode in ("all", "industry"):
                 self._set_progress(50, "AI总结行业新闻...")
-                industry_summary = summarize_industry(industry_articles, competition_articles)
+                industry_result = summarize_industry(industry_articles, competition_articles)
+                if isinstance(industry_result, tuple):
+                    industry_summary, industry_combined = industry_result
+                else:
+                    industry_summary = industry_result
+                    industry_combined = industry_articles
 
             self._set_progress(70, "AI总结完成")
 
@@ -848,7 +853,7 @@ class NewsDailyGUI:
 
             if mode in ("all", "industry") and industry_summary:
                 self._set_progress(85, "生成AI行业日报...")
-                generate_industry_report(summary_text=industry_summary, articles=industry_articles)
+                generate_industry_report(summary_text=industry_summary, articles=industry_combined)
 
             self._set_progress(100, "完成!")
             self.root.after(500, lambda: self._set_progress(0, ""))

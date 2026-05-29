@@ -75,12 +75,18 @@ def run_daily(mode: str = "all"):
 
     if mode in ("all", "industry"):
         try:
-            industry_summary = summarize_industry(industry_articles, competition_articles)
+            industry_result = summarize_industry(industry_articles, competition_articles)
+            if isinstance(industry_result, tuple):
+                industry_summary, industry_combined = industry_result
+            else:
+                industry_summary = industry_result
+                industry_combined = industry_articles
         except Exception as e:
             logger.error(f"行业新闻AI总结失败: {e}")
             industry_summary = "\n".join(
                 f"- {a['title']}" for a in industry_articles[:15]
             )
+            industry_combined = industry_articles
 
     # Step 3: 生成HTML日报
     logger.info("第三步：生成日报...")
@@ -104,7 +110,7 @@ def run_daily(mode: str = "all"):
         try:
             path = generate_industry_report(
                 summary_text=industry_summary,
-                articles=industry_articles,
+                articles=industry_combined,
             )
             logger.info(f"AI日报: {path}")
             results.append(("industry", path))
