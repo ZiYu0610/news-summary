@@ -56,14 +56,12 @@ def run_daily(mode: str = "all"):
 
     political_articles = news_data.get("political", [])
     industry_articles = news_data.get("industry", [])
-    hangzhou_policy_articles = news_data.get("hangzhou_policy", [])
 
     # Step 2: AI总结
     logger.info("第二步：人工智能总结新闻...")
 
     political_summary = ""
     industry_summary = ""
-    hangzhou_policy_summary = ""
 
     if mode in ("all", "political"):
         try:
@@ -73,23 +71,6 @@ def run_daily(mode: str = "all"):
             political_summary = "\n".join(
                 f"- {a['title']}" for a in political_articles[:15]
             )
-
-        # 杭州创业政策总结
-        if hangzhou_policy_articles:
-            try:
-                from summarizer.summarizer import ClaudeClient
-                client = ClaudeClient()
-                content = "\n".join(
-                    f"- [{a['source']}] {a['title']}" for a in hangzhou_policy_articles[:20]
-                )
-                prompt = f"请总结以下杭州市创业扶持政策信息（截至{__import__('datetime').datetime.now().strftime('%Y年%m月%d日')}）：\n\n{content}\n\n请按政策类型分类整理，标注每条来源和发布日期。关注创业补贴、人才引进、科技创新、税收优惠等方面。"
-                system = "你是一位政策分析师，擅长解读各类创业扶持政策。请简洁清晰地总结以下政策信息，每条标注来源。"
-                hangzhou_policy_summary = client.chat(system, [{"role": "user", "content": prompt}])
-            except Exception as e:
-                logger.error(f"杭州政策总结失败: {e}")
-                hangzhou_policy_summary = "\n".join(
-                    f"- {a['title']}" for a in hangzhou_policy_articles[:10]
-                )
 
     if mode in ("all", "industry"):
         try:
@@ -112,8 +93,6 @@ def run_daily(mode: str = "all"):
             path = generate_political_report(
                 summary_text=political_summary,
                 articles=political_articles,
-                hangzhou_policy_summary=hangzhou_policy_summary,
-                hangzhou_policy_articles=hangzhou_policy_articles,
             )
             logger.info(f"时政日报: {path}")
             results.append(("political", path))

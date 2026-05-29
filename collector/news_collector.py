@@ -13,8 +13,7 @@ from bs4 import BeautifulSoup
 
 from config import (
     POLITICAL_NEWS_SOURCES, AIGC_NEWS_SOURCES,
-    POLITICAL_WEB_SOURCES, WEB_SCRAPE_SOURCES,
-    HANGZHOU_POLICY_SOURCES, NEWS_DIR,
+    POLITICAL_WEB_SOURCES, WEB_SCRAPE_SOURCES, NEWS_DIR,
 )
 
 logger = logging.getLogger(__name__)
@@ -230,16 +229,6 @@ def collect_political_news(days: int = 2) -> List[Dict]:
     return deduplicate(all_articles)
 
 
-def collect_hangzhou_policy(days: int = 30) -> List[Dict]:
-    """采集杭州市创业扶持政策信息（近一个月）"""
-    all_articles = []
-    for source in HANGZHOU_POLICY_SOURCES:
-        articles = fetch_web(source["url"], source["name"])
-        all_articles.extend(articles)
-
-    return deduplicate(all_articles)
-
-
 def _parse_html_to_articles(html: str, source_name: str) -> List[Dict]:
     """将HTML页面解析为文章列表"""
     articles = []
@@ -337,22 +326,17 @@ def collect_all(days: int = 2) -> Dict[str, List[Dict]]:
     industry = collect_industry_news(days)
     logger.info(f"行业新闻: 采集到 {len(industry)} 条")
 
-    hangzhou_policy = collect_hangzhou_policy(days=30)
-    logger.info(f"杭州创业政策: 采集到 {len(hangzhou_policy)} 条")
-
     # 保存到数据库
     try:
         from system.database import save_articles
         save_articles(political, "political")
         save_articles(industry, "industry")
-        save_articles(hangzhou_policy, "policy")
     except Exception as e:
         logger.warning(f"保存到数据库失败: {e}")
 
     return {
         "political": political,
         "industry": industry,
-        "hangzhou_policy": hangzhou_policy,
         "collected_at": datetime.now().isoformat(),
     }
 

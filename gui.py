@@ -239,6 +239,17 @@ class NewsDailyGUI:
         ]:
             self._btn(parent, *btn)
 
+        # 外部站点登录
+        tk.Frame(parent, bg=self.COLORS["border"], height=1).pack(fill=tk.X, padx=14, pady=10)
+        tk.Label(parent, text="站 点 登 录", font=("Microsoft YaHei", 11, "bold"),
+                 fg=self.COLORS["text_dark"], bg=self.COLORS["bg_card"]).pack(**pad)
+        for btn in [
+            ("抖音创作者中心", "#e74c3c", lambda: self._quick_login("douyin_creator", "抖音创作者中心", "https://creator.douyin.com/login")),
+            ("巨量引擎", "#e67e22", lambda: self._quick_login("oceanengine", "巨量引擎", "https://www.oceanengine.com/login")),
+            ("抖音电商学习中心", "#3498db", lambda: self._quick_login("douyin_school", "抖音电商学习中心", "https://school.jinritemai.com/login")),
+        ]:
+            self._btn(parent, *btn)
+
     def _btn(self, parent, text, color, command):
         btn = tk.Button(
             parent, text=text, command=command,
@@ -524,10 +535,18 @@ class NewsDailyGUI:
         tk.Button(dialog, text="关闭", command=dialog.destroy,
                   font=("Microsoft YaHei", 10), relief="flat", padx=20).pack(pady=(4, 10))
 
+    def _quick_login(self, site_id, site_name, login_url):
+        """从侧边栏快速登录"""
+        self._log(f"正在打开浏览器登录 {site_name}...")
+        self._execute_login(site_id, site_name, login_url)
+
     def _do_login(self, parent_dialog, site_id, site_name, login_url):
-        """执行登录，自动保存Cookie"""
+        """从登录管理器执行登录"""
         self._log(f"正在打开浏览器登录 {site_name}...")
         parent_dialog.destroy()
+        self._execute_login(site_id, site_name, login_url)
+
+    def _execute_login(self, site_id, site_name, login_url):
 
         try:
             from playwright.sync_api import sync_playwright

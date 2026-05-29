@@ -239,8 +239,6 @@ def _summary_to_html(md_text: str, articles: List[Dict] = None,
 def generate_political_report(
     summary_text: str,
     articles: List[Dict],
-    hangzhou_policy_summary: str = "",
-    hangzhou_policy_articles: List[Dict] = None,
 ) -> Path:
     """生成时政日报HTML"""
     today_str = _chinese_date()
@@ -251,16 +249,6 @@ def generate_political_report(
     output_path = MONTH_DIR / filename
 
     news_html = _summary_to_html(summary_text, articles=articles, mark_ai=True)
-
-    policy_html = ""
-    if hangzhou_policy_summary:
-        policy_html = f'''
-        <div class="section policy-section">
-            <h2>杭州市创业扶持政策动态</h2>
-            <div class="policy-content">
-                {_summary_to_html(hangzhou_policy_summary, articles=hangzhou_policy_articles)}
-            </div>
-        </div>'''
 
     html = f"""<!DOCTYPE html>
 <html lang="zh-CN">
@@ -337,9 +325,6 @@ def generate_political_report(
         .section strong {{ color: #2d3436; }}
         .section hr {{ border: none; border-top: 1px solid #eee; margin: 16px 0; }}
         .ai-highlight {{ color: #cc0000; font-weight: bold; }}
-        .policy-section {{ border-left: 4px solid #e67e22; }}
-        .policy-section h2 {{ color: #e67e22; border-bottom-color: #e67e22; }}
-        .policy-content {{ background: #fffaf0; border-radius: 8px; padding: 12px 16px; }}
         .source-link {{
             display: inline-block;
             background: #fef2f2;
@@ -389,8 +374,6 @@ def generate_political_report(
         <div class="section">
             {news_html}
         </div>
-
-        {policy_html}
 
         <div class="footer">
             <p>由人工智能自动生成 · 仅供参考 · {datetime.now().strftime('%Y年%m月%d日 %H:%M')}</p>

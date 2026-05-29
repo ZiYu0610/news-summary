@@ -110,40 +110,6 @@ POLITICAL_WEB_SOURCES = [
     },
 ]
 
-# 杭州市创业扶持政策信息源
-HANGZHOU_POLICY_SOURCES = [
-    {
-        "name": "杭州市人民政府",
-        "type": "web",
-        "url": "https://www.hangzhou.gov.cn/",
-        "category": "policy",
-    },
-    {
-        "name": "杭州人社",
-        "type": "web",
-        "url": "http://hrss.hangzhou.gov.cn/",
-        "category": "policy",
-    },
-    {
-        "name": "杭州科技局",
-        "type": "web",
-        "url": "https://kj.hangzhou.gov.cn/",
-        "category": "policy",
-    },
-    {
-        "name": "杭州发改",
-        "type": "web",
-        "url": "https://drc.hangzhou.gov.cn/",
-        "category": "policy",
-    },
-    {
-        "name": "浙江政务服务网",
-        "type": "web",
-        "url": "https://www.zj.gov.cn/",
-        "category": "policy",
-    },
-]
-
 # AIGC 行业新闻源（AI影视传媒方向）
 AIGC_NEWS_SOURCES = [
     {
