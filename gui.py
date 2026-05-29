@@ -259,6 +259,9 @@ class NewsDailyGUI:
         tk.Label(parent, text="自 定 义 日 报", font=("Microsoft YaHei", 11, "bold"),
                  fg=self.COLORS["text_dark"], bg=self.COLORS["bg_card"]).pack(**pad)
         self._btn(parent, "自定义日报", "#8b5cf6", self._open_custom_report)
+        tk.Label(parent, text="⚠ 请谨慎使用，自选来源可能耗时较长",
+                 font=("Microsoft YaHei", 7), fg="#e74c3c",
+                 bg=self.COLORS["bg_card"]).pack(pady=(0, 6))
 
         # 分隔线
         tk.Frame(parent, bg=self.COLORS["border"], height=1).pack(fill=tk.X, padx=16, pady=10)
@@ -351,10 +354,11 @@ class NewsDailyGUI:
         bar.pack(fill=tk.X, side=tk.BOTTOM)
         bar.pack_propagate(False)
 
-        now = datetime.now().strftime("%Y-%m-%d %H:%M")
-        tk.Label(bar, text=f"{now}   |   数据目录: {DATA_DIR}",
+        self._time_label = tk.Label(bar, text="",
                  fg="#94a3b8", bg=self.COLORS["bg_dark"],
-                 font=("Microsoft YaHei", 9)).pack(side=tk.LEFT, padx=16)
+                 font=("Microsoft YaHei", 9))
+        self._time_label.pack(side=tk.LEFT, padx=16)
+        self._update_clock()
 
         login_btn = tk.Button(
             bar, text="登录管理",
@@ -400,6 +404,12 @@ class NewsDailyGUI:
 
     def _log(self, msg, level="info"):
         getattr(logging.getLogger("gui"), level)(msg)
+
+    def _update_clock(self):
+        """每秒更新状态栏时间"""
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self._time_label.configure(text=f"{now}   |   数据目录: {DATA_DIR}")
+        self.root.after(1000, self._update_clock)
 
     def _clear_log(self):
         self.log_text.configure(state=tk.NORMAL)
