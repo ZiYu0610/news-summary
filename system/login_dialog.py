@@ -22,7 +22,7 @@ class LoginDialog:
         self._mode = "login"
 
         self._build()
-        self._center(400, 480)
+        self._center(400, 500)
         self.root.after(300, self._auto_login)
 
     def _center(self, w, h):
@@ -125,8 +125,8 @@ class LoginDialog:
                        fg=C["text2"], bg=C["card"], selectcolor=C["card"],
                        activebackground=C["card"], cursor="hand2").pack(anchor="w", pady=(8, 2))
 
-        tk.Button(self._form, text="登  录", font=("Microsoft YaHei", 13, "bold"),
-                  bg=C["primary"], fg="white", relief="flat", pady=10, cursor="hand2",
+        tk.Button(self._form, text="登  录", font=("Microsoft YaHei", 16, "bold"),
+                  bg=C["primary"], fg="white", relief="flat", pady=14, cursor="hand2",
                   command=self._do_login).pack(fill="x", pady=(6, 0))
         self.root.bind("<Return>", lambda e: self._do_login())
 
@@ -155,8 +155,8 @@ class LoginDialog:
         self._rc = self._input("确认密码", show="*")
         self._show_btn(self._rc)
 
-        tk.Button(self._form, text="注  册", font=("Microsoft YaHei", 13, "bold"),
-                  bg=C["success"], fg="white", relief="flat", pady=10, cursor="hand2",
+        tk.Button(self._form, text="注  册", font=("Microsoft YaHei", 16, "bold"),
+                  bg=C["success"], fg="white", relief="flat", pady=14, cursor="hand2",
                   command=self._do_register).pack(fill="x", pady=(10, 0))
         self.root.bind("<Return>", lambda e: self._do_register())
 
