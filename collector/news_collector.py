@@ -330,17 +330,29 @@ def collect_all(days: int = 2) -> Dict[str, List[Dict]]:
     industry = collect_industry_news(days)
     logger.info(f"行业新闻: 采集到 {len(industry)} 条")
 
+    # 从行业新闻中分离比赛信息
+    competition = [a for a in industry if "大赛" in a.get("title", "") or "竞赛" in a.get("title", "") or "AIGC" in a.get("title", "") and ("赛" in a.get("title", "") or "奖" in a.get("title", ""))]
+    # 也检查来源是否为比赛源
+    comp_sources = {"AITOP100大赛"}
+    comp_from_source = [a for a in industry if a.get("source") in comp_sources and a not in competition]
+    competition.extend(comp_from_source)
+
     # 保存到数据库
     try:
         from system.database import save_articles
         save_articles(political, "political")
         save_articles(industry, "industry")
+        if competition:
+            save_articles(competition, "competition")
     except Exception as e:
         logger.warning(f"保存到数据库失败: {e}")
+
+    logger.info(f"比赛信息: 分离出 {len(competition)} 条")
 
     return {
         "political": political,
         "industry": industry,
+        "competition": competition,
         "collected_at": datetime.now().isoformat(),
     }
 

@@ -56,6 +56,7 @@ def run_daily(mode: str = "all"):
 
     political_articles = news_data.get("political", [])
     industry_articles = news_data.get("industry", [])
+    competition_articles = news_data.get("competition", [])
 
     # Step 2: AI总结
     logger.info("第二步：人工智能总结新闻...")
@@ -74,7 +75,7 @@ def run_daily(mode: str = "all"):
 
     if mode in ("all", "industry"):
         try:
-            industry_summary = summarize_industry(industry_articles)
+            industry_summary = summarize_industry(industry_articles, competition_articles)
         except Exception as e:
             logger.error(f"行业新闻AI总结失败: {e}")
             industry_summary = "\n".join(

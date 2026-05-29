@@ -293,6 +293,17 @@ class NewsDailyGUI:
                   bg=self.COLORS["border"], fg=self.COLORS["text_dark"],
                   cursor="hand2").pack(side=tk.RIGHT)
 
+        # 进度条
+        self._progress_frame = tk.Frame(parent, bg=self.COLORS["bg_card"])
+        self._progress_frame.pack(fill=tk.X, padx=16, pady=(0, 4))
+        self._progress_bar = ttk.Progressbar(self._progress_frame, mode="determinate", length=200)
+        self._progress_bar.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        self._progress_label = tk.Label(self._progress_frame, text="", font=("Consolas", 9),
+                                        fg=self.COLORS["gray"], bg=self.COLORS["bg_card"])
+        self._progress_label.pack(side=tk.RIGHT, padx=(8, 0))
+        # 默认隐藏
+        self._progress_frame.pack_forget()
+
         # 日志文本框
         self.log_text = scrolledtext.ScrolledText(
             parent, wrap=tk.WORD,
@@ -562,7 +573,7 @@ class NewsDailyGUI:
                     os.startfile(sys.argv[0])
 
         btn_frame = tk.Frame(dialog, bg=self.COLORS["bg_card"])
-        btn_frame.pack(fill=tk.X, padx=20, pady=(16, 12))
+        btn_frame.pack(fill=tk.X, padx=20, pady=(12, 4))
 
         tk.Button(btn_frame, text="取消",
                   command=dialog.destroy,
@@ -574,6 +585,11 @@ class NewsDailyGUI:
                   bg=self.COLORS["primary"], fg="white",
                   font=("Microsoft YaHei", 10),
                   relief=tk.FLAT, padx=20).pack(side=tk.RIGHT)
+
+        tk.Label(dialog,
+                 text="* 点击保存后需要重新登录系统才能使新配置生效",
+                 font=("Microsoft YaHei", 9),
+                 fg=self.COLORS["red"], bg=self.COLORS["bg_card"]).pack(padx=20, pady=(0, 12))
 
     def _open_login_manager(self):
         """打开登录管理器"""
@@ -780,29 +796,69 @@ class NewsDailyGUI:
 
     # ==================== 操作 ====================
 
+    def _set_progress(self, value: int, text: str = ""):
+        """更新进度条（线程安全）"""
+        self.root.after(0, lambda: self._progress_bar.configure(value=value))
+        self.root.after(0, lambda: self._progress_label.configure(text=text))
+
     def _run(self, mode):
         labels = {"political": "时政日报", "industry": "AI影视行业日报"}
         label = labels.get(mode, "日报")
         self._log(f"{'='*50}")
         self._log(f"  开始生成 {label} ...")
         self._log(f"{'='*50}")
+        # 显示进度条
+        self._progress_bar.configure(value=0)
+        self._progress_frame.pack(fill=tk.X, padx=16, pady=(0, 4))
         threading.Thread(target=self._run_task, args=(mode,), daemon=True).start()
 
     def _run_task(self, mode):
         try:
-            if IS_EXE:
-                sys.path.insert(0, str(BASE_DIR))
-                import main as m
-                m.run_daily(mode=mode)
-            else:
-                from main import run_daily as _run
-                _run(mode=mode)
+            # Step 1: 采集新闻
+            self._set_progress(5, "采集新闻中...")
+            from collector.news_collector import collect_all
+            news_data = collect_all(days=2)
 
+            self._set_progress(25, "新闻采集完成")
+
+            # Step 2: AI总结
+            from summarizer.summarizer import summarize_political, summarize_industry
+            political_articles = news_data.get("political", [])
+            industry_articles = news_data.get("industry", [])
+            competition_articles = news_data.get("competition", [])
+
+            political_summary = ""
+            industry_summary = ""
+
+            if mode in ("all", "political"):
+                self._set_progress(30, "AI总结时政新闻...")
+                political_summary = summarize_political(political_articles)
+
+            if mode in ("all", "industry"):
+                self._set_progress(50, "AI总结行业新闻...")
+                industry_summary = summarize_industry(industry_articles, competition_articles)
+
+            self._set_progress(70, "AI总结完成")
+
+            # Step 3: 生成HTML报告
+            from report.report_generator import generate_political_report, generate_industry_report
+            if mode in ("all", "political") and political_summary:
+                self._set_progress(75, "生成时政日报...")
+                generate_political_report(summary_text=political_summary, articles=political_articles)
+
+            if mode in ("all", "industry") and industry_summary:
+                self._set_progress(85, "生成AI行业日报...")
+                generate_industry_report(summary_text=industry_summary, articles=industry_articles)
+
+            self._set_progress(100, "完成!")
+            self.root.after(500, lambda: self._set_progress(0, ""))
+            self.root.after(1000, lambda: self._progress_frame.pack_forget())
             self.root.after(0, lambda: self._log("生成完成！"))
-            # 只打开刚生成的报告，不打开其他类型的报告
             self.root.after(500, lambda: self._open_single_report(mode))
         except Exception as e:
             self.root.after(0, lambda: self._log(f"错误: {e}"))
+            import traceback
+            self.root.after(0, lambda: self._log(traceback.format_exc()[:500]))
 
     def _open_single_report(self, mode):
         """只打开指定类型的报告"""

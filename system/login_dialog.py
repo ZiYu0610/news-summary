@@ -2,6 +2,8 @@
 import tkinter as tk
 from tkinter import messagebox
 from pathlib import Path
+import base64
+import json
 from config import DATA_DIR
 
 C = {
@@ -9,7 +11,38 @@ C = {
     "text": "#e2e8f0", "text2": "#94a3b8", "error": "#ef4444", "success": "#27ae60",
     "entry_bg": "#2d2b55", "border": "#2d2b55",
 }
-TOKEN_FILE = DATA_DIR / ".auto_login"
+CRED_FILE = DATA_DIR / ".credentials"
+
+
+def _save_credentials(username: str, password: str):
+    """保存记住的密码（base64编码）"""
+    try:
+        data = json.dumps({"u": username, "p": password})
+        encoded = base64.b64encode(data.encode()).decode()
+        CRED_FILE.parent.mkdir(parents=True, exist_ok=True)
+        CRED_FILE.write_text(encoded, encoding="utf-8")
+    except Exception:
+        pass
+
+
+def _load_credentials() -> dict:
+    """读取记住的密码"""
+    if not CRED_FILE.exists():
+        return {}
+    try:
+        encoded = CRED_FILE.read_text(encoding="utf-8").strip()
+        data = json.loads(base64.b64decode(encoded).decode())
+        return data
+    except Exception:
+        return {}
+
+
+def _clear_credentials():
+    """清除记住的密码"""
+    try:
+        CRED_FILE.unlink(missing_ok=True)
+    except Exception:
+        pass
 
 
 class LoginDialog:
@@ -23,7 +56,7 @@ class LoginDialog:
 
         self._build()
         self._center(400, 500)
-        self.root.after(300, self._auto_login)
+        self._load_saved_credentials()
 
     def _center(self, w, h):
         self.root.geometry(f"{w}x{h}")
@@ -31,6 +64,15 @@ class LoginDialog:
         x = (self.root.winfo_screenwidth() - w) // 2
         y = (self.root.winfo_screenheight() - h) // 2
         self.root.geometry(f"{w}x{h}+{x}+{y}")
+
+    def _load_saved_credentials(self):
+        """填充已保存的账号密码"""
+        creds = _load_credentials()
+        if creds.get("u"):
+            self._u.insert(0, creds["u"])
+            self._rem.set(True)
+            if creds.get("p"):
+                self._p.insert(0, creds["p"])
 
     def _build(self):
         # 标题
@@ -119,8 +161,8 @@ class LoginDialog:
         self._p = self._input("密码", show="*")
         self._show_btn(self._p)
 
-        self._rem = tk.BooleanVar(value=True)
-        tk.Checkbutton(self._form, text="记住登录状态（30天免登录）",
+        self._rem = tk.BooleanVar(value=False)
+        tk.Checkbutton(self._form, text="记住密码（自动填充账号）",
                        variable=self._rem, font=("Microsoft YaHei", 9),
                        fg=C["text2"], bg=C["card"], selectcolor=C["card"],
                        activebackground=C["card"], cursor="hand2").pack(anchor="w", pady=(8, 2))
@@ -134,13 +176,13 @@ class LoginDialog:
         u, p = self._u.get().strip(), self._p.get()
         if not u or not p:
             self._err.configure(text="请输入用户名和密码"); return
-        from system.database import login_user, create_auto_login
+        from system.database import login_user
         r = login_user(u, p)
         if r["success"]:
             if self._rem.get():
-                t = create_auto_login(r["user_id"])
-                TOKEN_FILE.parent.mkdir(parents=True, exist_ok=True)
-                TOKEN_FILE.write_text(t, encoding="utf-8")
+                _save_credentials(u, p)
+            else:
+                _clear_credentials()
             self.result = r
             self.root.destroy()
         else:
@@ -176,25 +218,6 @@ class LoginDialog:
             self._p.focus()
         else:
             self._err.configure(text=r["msg"])
-
-    # ========== 自动登录 ==========
-
-    def _auto_login(self):
-        if not TOKEN_FILE.exists():
-            return
-        try:
-            token = TOKEN_FILE.read_text(encoding="utf-8").strip()
-            if not token:
-                return
-            from system.database import verify_auto_login
-            user = verify_auto_login(token)
-            if user:
-                self.result = user
-                self.root.destroy()
-            else:
-                TOKEN_FILE.unlink(missing_ok=True)
-        except Exception:
-            pass
 
     def run(self):
         self.root.mainloop()

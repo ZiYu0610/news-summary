@@ -110,7 +110,7 @@ POLITICAL_WEB_SOURCES = [
     },
 ]
 
-# AIGC 行业新闻源（国内权威媒体）
+# AIGC 行业新闻源（国内权威媒体 + AI影视垂直）
 AIGC_NEWS_SOURCES = [
     {
         "name": "人民网科技",
@@ -128,6 +128,18 @@ AIGC_NEWS_SOURCES = [
         "name": "央视网AI",
         "type": "web",
         "url": "https://www.cctv.com/",
+        "category": "industry",
+    },
+    {
+        "name": "澎湃新闻",
+        "type": "web",
+        "url": "https://www.thepaper.cn/",
+        "category": "industry",
+    },
+    {
+        "name": "每日经济新闻",
+        "type": "web",
+        "url": "https://www.nbd.com.cn/",
         "category": "industry",
     },
 ]
@@ -200,6 +212,13 @@ WEB_SCRAPE_SOURCES = [
         "type": "web",
         "url": "https://www.1905.com/",
         "category": "industry",
+    },
+    # --- AIGC比赛信息 ---
+    {
+        "name": "AITOP100大赛",
+        "type": "web",
+        "url": "https://www.aitop100.cn/infomation/index.html",
+        "category": "competition",
     },
 ]
 
