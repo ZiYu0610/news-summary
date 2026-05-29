@@ -69,6 +69,64 @@ def fetch_rss(url: str, source_name: str, days: int = 2) -> List[Dict]:
 
 # ==================== 网页抓取 ====================
 
+def _extract_date_from_url(url: str) -> Optional[str]:
+    """从URL中提取发布日期（支持多种常见格式）"""
+    import re
+    patterns = [
+        # /2026/05/28/ 或 /2026-05-28/
+        r'/(\d{4})[/-](\d{2})[/-](\d{2})/',
+        # /20260528/
+        r'/(\d{4})(\d{2})(\d{2})/',
+        # 20260528 出现在文件名中
+        r'(\d{4})(\d{2})(\d{2})',
+    ]
+    for pat in patterns:
+        m = re.search(pat, url)
+        if m:
+            y, mo, d = m.group(1), m.group(2), m.group(3)
+            # 简单校验：年份在2020-2030之间
+            if 2020 <= int(y) <= 2030 and 1 <= int(mo) <= 12 and 1 <= int(d) <= 31:
+                return f"{y}-{mo}-{d}"
+    return None
+
+
+def _extract_date_from_nearby(parent_tag) -> Optional[str]:
+    """从标签附近提取日期文本"""
+    import re
+    if parent_tag is None:
+        return None
+    # 找附近的 <time> 标签
+    time_tag = parent_tag.find("time")
+    if time_tag and time_tag.get("datetime"):
+        dt = time_tag["datetime"][:10]
+        if re.match(r'\d{4}-\d{2}-\d{2}', dt):
+            return dt
+    # 找附近包含日期的文本节点
+    for txt in parent_tag.find_all(string=True):
+        txt = txt.strip()
+        m = re.search(r'(\d{4})年(\d{1,2})月(\d{1,2})日', txt)
+        if m:
+            return f"{m.group(1)}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
+        m = re.search(r'(\d{4})-(\d{2})-(\d{2})', txt)
+        if m:
+            return f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
+    return None
+
+
+def _get_article_date(a_tag, href: str) -> Optional[str]:
+    """综合多种策略获取文章发布日期"""
+    # 1. URL提取
+    date = _extract_date_from_url(href)
+    if date:
+        return date
+    # 2. 从附近HTML上下文提取
+    parent_block = a_tag.find_parent(["li", "div", "section", "article"])
+    date = _extract_date_from_nearby(parent_block)
+    if date:
+        return date
+    return None
+
+
 def fetch_web(url: str, source_name: str, timeout: int = 15) -> List[Dict]:
     """从新闻网站抓取文章列表（根据网站特征智能提取）"""
     articles = []
@@ -114,17 +172,23 @@ def fetch_web(url: str, source_name: str, timeout: int = 15) -> List[Dict]:
             if parent_heading:
                 title = parent_heading.get_text(strip=True)
 
-           # 提取摘要（周围文字）
+            # 提取摘要（周围文字）
             summary = title
             parent_p = a_tag.find_parent("p")
             if parent_p:
                 summary = parent_p.get_text(strip=True)[:200]
 
+            # 提取发布日期
+            published = _get_article_date(a_tag, href)
+            if published:
+                # 转为ISO格式
+                published = published + "T00:00:00"
+
             articles.append({
                 "title": title[:100],
                 "link": href,
                 "summary": summary,
-                "published": None,
+                "published": published,
                 "source": source_name,
                 "collected_at": datetime.now().isoformat(),
             })

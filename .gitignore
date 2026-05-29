@@ -7,9 +7,11 @@ dist/
 .env
 build/
 *.bak
+crash_error.log
 data/settings.json
 data/*.db
 data/.auto_login
+data/.credentials
 data/news/
 data/reports/
 data/sessions/
