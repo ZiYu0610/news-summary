@@ -1,4 +1,4 @@
-1.系统报错：时政日报生成失败: no such group
-2.抖音创作者中心 需要登录，请在GUI中先登录，但是我明明已经登录了
-3.去掉以下信息来源：爱范儿、RSS、TechCrunch、ArsTechnica、Variety、The Hollywood Reporter、AI News、Hacker News等非官方来源
-4.系统右下角的“设置”按钮，是用于API配置的，改一个名。另外，因为我调用的是deepseek v4，但是我希望它能有更多适配，并且我希望我填入api地址后，他能分析出该api有哪几种模型，然后在模型名称中拉一个可以选择的功能，方便用户选择模型
+1.系统报错：
+正在打开浏览器登录 抖音创作者中心...
+14:23:37  登录过程出错: Error: BrowserType.launch: Executable doesn't exist at C:\Users\ziyu0610\AppData\Local\Temp\_MEI318842\playwright\driver\package\.local-browsers\chromium-1223\chrome-win64\chrome.exe
+可以改回使用chrome浏览器，然后是edge...

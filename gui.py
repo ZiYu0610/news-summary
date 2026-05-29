@@ -251,7 +251,6 @@ class NewsDailyGUI:
                  fg=self.COLORS["text_dark"], bg=self.COLORS["bg_card"]).pack(**pad)
         for btn in [
             ("查看最新日报", self.COLORS["gray"], self._open_reports),
-            ("价格走势图", self.COLORS["orange"], self._generate_and_open_chart),
             ("报告目录", self.COLORS["gray"], lambda: os.startfile(str(MONTH_DIR)) if hasattr(os, 'startfile') else None),
         ]:
             self._btn(parent, *btn)
@@ -296,10 +295,14 @@ class NewsDailyGUI:
         # 进度条
         self._progress_frame = tk.Frame(parent, bg=self.COLORS["bg_card"])
         self._progress_frame.pack(fill=tk.X, padx=16, pady=(0, 4))
-        self._progress_bar = ttk.Progressbar(self._progress_frame, mode="determinate", length=200)
+        # 样式设置（更大更显眼）
+        s = ttk.Style()
+        s.configure("TProgressbar", thickness=12)
+        self._progress_bar = ttk.Progressbar(self._progress_frame, mode="determinate",
+                                             length=200, style="TProgressbar")
         self._progress_bar.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        self._progress_label = tk.Label(self._progress_frame, text="", font=("Consolas", 9),
-                                        fg=self.COLORS["gray"], bg=self.COLORS["bg_card"])
+        self._progress_label = tk.Label(self._progress_frame, text="", font=("Consolas", 9, "bold"),
+                                        fg=self.COLORS["primary"], bg=self.COLORS["bg_card"])
         self._progress_label.pack(side=tk.RIGHT, padx=(8, 0))
         # 默认隐藏
         self._progress_frame.pack_forget()
@@ -734,30 +737,42 @@ class NewsDailyGUI:
         threading.Thread(target=self._execute_login, args=(site_id, site_name, login_url), daemon=True).start()
 
     def _execute_login(self, site_id, site_name, login_url):
+        cookie_file = DATA_DIR / "sessions" / f"{site_id}_cookies.json"
+
+        # 尝试用 Playwright 自动登录
         try:
             import json
             import time
             from playwright.sync_api import sync_playwright
-        except ImportError:
-            self._log("错误：Playwright 未安装，请执行: pip install playwright && python -m playwright install chromium")
-            return
 
-        try:
             with sync_playwright() as p:
-                # 使用 Playwright 内置 Chromium（不影响用户自己的 Chrome）
-                browser = p.chromium.launch(headless=False)
-                self._log(f"已打开 Playwright 内置浏览器，请在窗口中登录 {site_name}")
-                context = browser.new_context()
-                page = context.new_page()
+                sess_dir = str(DATA_DIR / "sessions" / site_id)
+                browser = None
+                for ch in ["chrome", "msedge", None]:
+                    try:
+                        kw = {"headless": False}
+                        if ch:
+                            kw["channel"] = ch
+                        browser = p.chromium.launch_persistent_context(
+                            user_data_dir=sess_dir, **kw,
+                            viewport={"width": 1280, "height": 800}, locale="zh-CN")
+                        break
+                    except Exception:
+                        continue
+
+                if browser is None:
+                    raise RuntimeError("no_browser")
+
+                self._log(f"浏览器已打开，请在窗口中登录 {site_name}")
+                page = browser.pages[0] if browser.pages else browser.new_page()
                 page.goto(login_url, wait_until="domcontentloaded")
                 self._log(f"请在浏览器中登录 {site_name}，登录后关闭浏览器窗口即可")
 
-                # 等待登录完成（检测 URL 不再包含 login）
                 while True:
                     try:
-                        if len(context.pages) == 0:
+                        if len(browser.pages) == 0:
                             break
-                        current = context.pages[0].url if context.pages else ""
+                        current = browser.pages[0].url if browser.pages else ""
                         if current and "login" not in current.lower() and current != "about:blank":
                             self._log("检测到登录成功！正在保存Cookie...")
                             break
@@ -765,25 +780,136 @@ class NewsDailyGUI:
                         break
                     time.sleep(1)
 
-                cookies = context.cookies()
+                cookies = browser.cookies()
                 browser.close()
 
-                # 保存到数据库
                 from system.database import save_login_session
                 save_login_session(site_id, site_name, cookies)
                 self._log(f"{site_name} 登录成功，已保存 {len(cookies)} 条Cookie")
                 cookie_file.parent.mkdir(parents=True, exist_ok=True)
                 cookie_file.write_text(json.dumps(cookies, ensure_ascii=False, indent=2), encoding="utf-8")
+                return
 
+        except ImportError:
+            pass  # Playwright 未安装，走降级方案
         except Exception as e:
-            self._log(f"登录过程出错: {type(e).__name__}: {e}")
+            msg = str(e)
+            if "no_browser" in msg:
+                pass  # 没找到浏览器，走降级方案
+            elif "Executable doesn't exist" in msg or "playwright" in str(type(e).__name__).lower():
+                pass  # EXE中驱动不可用，走降级方案
+            else:
+                self._log(f"自动登录失败: {type(e).__name__}: {e}")
+
+        # 降级方案：用默认浏览器打开 + 手动粘贴Cookie
+        self._log(f"Playwright不可用，改用浏览器手动登录模式")
+        self._manual_cookie_login(site_id, site_name, login_url)
+
+    def _manual_cookie_login(self, site_id, site_name, login_url):
+        """手动Cookie登录：打开默认浏览器，用户登录后粘贴Cookie"""
+        import webbrowser
+        webbrowser.open(login_url)
+
+        # 弹出Cookie输入框
+        dialog = tk.Toplevel(self.root)
+        dialog.title(f"手动登录 - {site_name}")
+        dialog.geometry("580x510")
+        dialog.resizable(False, False)
+        dialog.configure(bg=self.COLORS["bg_card"])
+        dialog.transient(self.root)
+        dialog.grab_set()
+
+        tk.Label(dialog, text=f"手动登录 - {site_name}",
+                 font=("Microsoft YaHei", 13, "bold"),
+                 fg=self.COLORS["text_dark"], bg=self.COLORS["bg_card"]).pack(pady=(14, 6))
+
+        instructions = (
+            f"已在默认浏览器中打开 {site_name}\n\n"
+            "请先在浏览器中完成登录，然后：\n"
+            "1. 按 F12 打开开发者工具\n"
+            "2. 切换到 Application（应用程序）标签\n"
+            "3. 左侧 Storage → Cookies → 选择当前网站\n"
+            "4. 复制所有Cookie，格式如下：\n"
+            "   name1=value1; name2=value2\n"
+            "5. 粘贴到下方输入框中，点击保存"
+        )
+        tk.Label(dialog, text=instructions, justify="left",
+                 font=("Microsoft YaHei", 9), fg=self.COLORS["gray"],
+                 bg=self.COLORS["bg_card"]).pack(padx=20, pady=(0, 8))
+
+        cookie_entry = tk.Text(dialog, font=("Consolas", 9),
+                               bg=self.COLORS["bg_light"], fg=self.COLORS["text_dark"],
+                               wrap=tk.WORD, height=8, relief=tk.FLAT, borderwidth=1)
+        cookie_entry.pack(fill=tk.X, padx=20, pady=(0, 8))
+
+        status_label = tk.Label(dialog, text="", font=("Microsoft YaHei", 9),
+                                fg=self.COLORS["gray"], bg=self.COLORS["bg_card"])
+        status_label.pack()
+
+        def save_manual_cookies():
+            raw = cookie_entry.get("1.0", "end").strip()
+            if not raw:
+                status_label.configure(text="请粘贴Cookie内容", fg=self.COLORS["red"])
+                return
+
+            import json
+            import re
+            cookies = []
+            # 解析 Cookie 字符串：name=value; name2=value2 或 JSON 数组
+            if raw.startswith("["):
+                try:
+                    cookies = json.loads(raw)
+                except json.JSONDecodeError:
+                    status_label.configure(text="JSON格式错误", fg=self.COLORS["red"])
+                    return
+            else:
+                for part in raw.split(";"):
+                    part = part.strip()
+                    if "=" in part:
+                        name, value = part.split("=", 1)
+                        cookies.append({"name": name.strip(), "value": value.strip(),
+                                        "domain": "", "path": "/"})
+
+            if not cookies:
+                status_label.configure(text="未解析到有效的Cookie", fg=self.COLORS["red"])
+                return
+
+            from system.database import save_login_session
+            save_login_session(site_id, site_name, cookies)
+            self._log(f"{site_name} 手动登录成功，已保存 {len(cookies)} 条Cookie")
+
+            cookie_file = DATA_DIR / "sessions" / f"{site_id}_cookies.json"
+            cookie_file.parent.mkdir(parents=True, exist_ok=True)
+            cookie_file.write_text(json.dumps(cookies, ensure_ascii=False, indent=2), encoding="utf-8")
+
+            dialog.destroy()
+
+        btn_frame = tk.Frame(dialog, bg=self.COLORS["bg_card"])
+        btn_frame.pack(fill=tk.X, padx=20, pady=(4, 12))
+
+        tk.Button(btn_frame, text="取消", command=dialog.destroy,
+                  font=("Microsoft YaHei", 10), relief=tk.FLAT, padx=20).pack(side=tk.RIGHT, padx=(8, 0))
+        tk.Button(btn_frame, text="保存",
+                  command=save_manual_cookies,
+                  bg=self.COLORS["primary"], fg="white",
+                  font=("Microsoft YaHei", 10),
+                  relief=tk.FLAT, padx=20, cursor="hand2").pack(side=tk.RIGHT)
 
     # ==================== 操作 ====================
 
-    def _set_progress(self, value: int, text: str = ""):
-        """更新进度条（线程安全）"""
-        self.root.after(0, lambda: self._progress_bar.configure(value=value))
-        self.root.after(0, lambda: self._progress_label.configure(text=text))
+    def _set_progress(self, value: int, text: str = "", indeterminate: bool = False):
+        """更新进度条（线程安全）
+
+        value: 0-100 百分比，或 -1 表示启动加载动画
+        """
+        if indeterminate:
+            self.root.after(0, lambda: self._progress_bar.configure(mode="indeterminate"))
+            self.root.after(0, lambda: self._progress_bar.start(15))
+        else:
+            self.root.after(0, lambda: self._progress_bar.configure(mode="determinate"))
+            self.root.after(0, lambda: self._progress_bar.stop())
+            self.root.after(0, lambda: self._progress_bar.configure(value=value))
+            self.root.after(0, lambda: self._progress_label.configure(text=f"{text}  {value}%"))
 
     def _run(self, mode):
         labels = {"political": "时政日报", "industry": "AI影视行业日报"}
@@ -791,21 +917,20 @@ class NewsDailyGUI:
         self._log(f"{'='*50}")
         self._log(f"  开始生成 {label} ...")
         self._log(f"{'='*50}")
-        # 显示进度条
-        self._progress_bar.configure(value=0)
+        # 显示进度条（加载动画）
         self._progress_frame.pack(fill=tk.X, padx=16, pady=(0, 4))
+        self._set_progress(0, "准备中...", indeterminate=True)
         threading.Thread(target=self._run_task, args=(mode,), daemon=True).start()
 
     def _run_task(self, mode):
         try:
             # Step 1: 采集新闻
-            self._set_progress(5, "采集新闻中...")
+            self._set_progress(5, "采集新闻中")
             from collector.news_collector import collect_all
             news_data = collect_all(days=2)
-
             self._set_progress(25, "新闻采集完成")
 
-            # Step 2: AI总结
+            # Step 2: AI总结（耗时长，用加载动画）
             from summarizer.summarizer import summarize_political, summarize_industry
             political_articles = news_data.get("political", [])
             industry_articles = news_data.get("industry", [])
@@ -815,11 +940,11 @@ class NewsDailyGUI:
             industry_summary = ""
 
             if mode in ("all", "political"):
-                self._set_progress(30, "AI总结时政新闻...")
+                self._set_progress(30, "AI总结时政新闻", indeterminate=True)
                 political_summary = summarize_political(political_articles)
 
             if mode in ("all", "industry"):
-                self._set_progress(50, "AI总结行业新闻...")
+                self._set_progress(50, "AI总结行业新闻", indeterminate=True)
                 industry_result = summarize_industry(industry_articles, competition_articles)
                 if isinstance(industry_result, tuple):
                     industry_summary, industry_combined = industry_result
@@ -827,21 +952,20 @@ class NewsDailyGUI:
                     industry_summary = industry_result
                     industry_combined = industry_articles
 
-            self._set_progress(70, "AI总结完成")
+            self._set_progress(80, "AI总结完成")
 
             # Step 3: 生成HTML报告
             from report.report_generator import generate_political_report, generate_industry_report
             if mode in ("all", "political") and political_summary:
-                self._set_progress(75, "生成时政日报...")
+                self._set_progress(85, "生成时政日报")
                 generate_political_report(summary_text=political_summary, articles=political_articles)
 
             if mode in ("all", "industry") and industry_summary:
-                self._set_progress(85, "生成AI行业日报...")
+                self._set_progress(95, "生成AI行业日报")
                 generate_industry_report(summary_text=industry_summary, articles=industry_combined)
 
-            self._set_progress(100, "完成!")
-            self.root.after(500, lambda: self._set_progress(0, ""))
-            self.root.after(1000, lambda: self._progress_frame.pack_forget())
+            self._set_progress(100, "完成")
+            self.root.after(2000, lambda: self._progress_frame.pack_forget())
             self.root.after(0, lambda: self._log("生成完成！"))
             self.root.after(500, lambda: self._open_single_report(mode))
         except Exception as e:
